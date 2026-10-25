@@ -1,3 +1,10 @@
+# Archivos ejecutables
 *.exe
-*.o
-*.obj
+*.out
+
+# Carpetas de resultados o compilación
+output/
+
+# Otros archivos temporales del sistema operativo
+.DS_Store
+Thumbs.db
