@@ -1,7 +1,9 @@
 # Entorno virtual y caché de Python
 venv/
 __pycache__/
+.pytest_cache/
 *.pyc
+tests/
 
 # Editor y sistema operativo
 .vscode/
