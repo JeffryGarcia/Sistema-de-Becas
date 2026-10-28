@@ -1,4 +1,4 @@
-import streamlit as st
+import Streamlit as st
 
 # 1. Configuración de la página (debe ser el PRIMER comando de Streamlit)
 st.set_page_config(
