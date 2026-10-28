@@ -1,3 +1,15 @@
-*.exe
-*.o
-*.obj
+# Entorno virtual y caché de Python
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+tests/
+
+# Editor y sistema operativo
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Datos locales de cada integrante
+becas.json
+becas.db
