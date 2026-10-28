@@ -52,15 +52,20 @@ if "estud_beca" not in st.session_state:
 
 
 def agregar_estudiante(nombre, edad, carnet, carrera, correo):
-    """Agrega un estudiante a la lista global (guardada en session_state)."""
+    #funcion para agregar estudiantes a la lista global
+    if nombre == "" or edad == 0 or carnet == 0 or carrera == "" or correo == "":
+        st.error("Por favor, complete todos los campos.")
+        return
+
     estudiante = {
         "Nombre": nombre,
-        "Edad": int(edad),
-        "carnet": int(carnet),
+        "Edad": edad,
+        "carnet": carnet,
         "carrera": carrera,
         "correo": correo,
     }
     st.session_state.estud_beca.append(estudiante)
+
 
 
 def carnet_existe(carnet):
