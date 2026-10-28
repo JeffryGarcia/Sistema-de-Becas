@@ -1,4 +1,6 @@
+import streamlit as st
 #la lista global(contendra la informacion de los estudiantes)
+
 estud_beca = [
     # Declaracion de diccionarios de estudiantes modelo
     {
@@ -40,18 +42,22 @@ estud_beca = [
 
 def agregar_estudiante(nombre, edad, carnet, carrera, correo):
     #funcion para agregar estudiantes a la lista global
+    if nombre == "" or edad == 0 or carnet == 0 or carrera == "" or correo == "":
+        st.error("Por favor, complete todos los campos.")
+        return
+
     estudiante = {
         "Nombre": nombre,
         "Edad": edad,
         "carnet": carnet,
         "carrera": carrera,
-        "correo": correo
+        "correo": correo,
     }
     estud_beca.append(estudiante)
 
+
 #practicamente, esto es para crear el formulario que agregue estudiantes y que esto pueda entrar en la lista global
 
-import streamlit as st
 
 with st.form(key="agregar_estudiante_form"):
     nombre = st.text_input("Nombre")
@@ -62,3 +68,6 @@ with st.form(key="agregar_estudiante_form"):
 
     if st.form_submit_button("Agregar Estudiante"):
         agregar_estudiante(nombre, edad, carnet, carrera, correo)
+
+    # for estudiante in estud_beca:
+    #     if estudiante["carnet"] == carnet:
