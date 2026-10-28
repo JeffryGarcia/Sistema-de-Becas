@@ -1,10 +1,13 @@
-# Archivos ejecutables
-*.exe
-*.out
+# Entorno virtual y caché de Python
+venv/
+__pycache__/
+*.pyc
 
-# Carpetas de resultados o compilación
-output/
-
-# Otros archivos temporales del sistema operativo
+# Editor y sistema operativo
+.vscode/
 .DS_Store
 Thumbs.db
+
+# Datos locales de cada integrante
+becas.json
+becas.db
