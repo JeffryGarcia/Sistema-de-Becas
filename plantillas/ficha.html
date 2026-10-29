@@ -1,0 +1,16 @@
+<!-- ficha.html -> Estructura de la ficha del estudiante (Consulta de becas). Los huecos entre llaves los rellena consulta_becas.py. Estilos en style.css (clases "ficha", "badge" y "motivo"). -->
+<div class="ficha">
+    <div class="ficha-cabecera">
+        <div>
+            <h3>{nombre}</h3>
+            <p>{carrera}</p>
+        </div>
+        <span class="badge badge-{clase}">{estado}</span>
+    </div>
+    <div class="ficha-datos">
+        <div><small>Carnet</small><br><b>{carnet}</b></div>
+        <div><small>Edad</small><br><b>{edad} años</b></div>
+        <div><small>Correo</small><br><b>{correo}</b></div>
+    </div>
+    <div class="motivo motivo-{clase}">{motivo}</div>
+</div>

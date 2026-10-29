@@ -1,0 +1,221 @@
+/* =============================================================================
+   style.css -> Todos los ESTILOS del Sistema de Becas (tema OSCURO)
+   Se carga desde app.py y se aplica a toda la app (todas las páginas).
+
+   Paleta de colores usada:
+     Fondo de la página   #0b1220   |  Tarjetas y formularios  #101a30
+     Campos de texto      #18233f   |  Bordes                  #24324f
+     Texto principal      #e2e8f0   |  Texto títulos #f1f5f9   |  Texto suave #94a3b8
+     Azul (acentos)       #3b82f6
+     Verde (con beca)     #22c55e   |  Rojo (sin beca) #ef4444 |  Gris (sin registro) #64748b
+   ============================================================================= */
+
+/* Tipografía moderna (Inter) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ---------------------------------------------------------------------------
+   1. BASE: letra, espaciado general y limpieza de elementos de Streamlit
+   --------------------------------------------------------------------------- */
+.stApp, .stApp p, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4,
+.stApp button, .stApp input, .stApp textarea {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+/* Contenido principal: un poco más de aire arriba y ancho máximo cómodo */
+.block-container {
+    padding-top: 2.5rem;
+    max-width: 1200px;
+}
+
+/* Ocultamos el menú y el pie de página de Streamlit para que se vea como un sistema propio */
+#MainMenu, footer { visibility: hidden; }
+
+/* Títulos */
+.stApp h1, .stApp h2, .stApp h3 { color: #f1f5f9; font-weight: 600; letter-spacing: -0.3px; }
+.stApp h1 { font-weight: 700; }
+
+/* ---------------------------------------------------------------------------
+   2. MENÚ LATERAL: fondo azul muy oscuro con letras claras
+   --------------------------------------------------------------------------- */
+[data-testid="stSidebar"] {
+    background: #0a1020;
+    border-right: 1px solid #1c2845;
+}
+[data-testid="stSidebar"] * { color: #cbd5e1 !important; }
+
+/* Cada opción del menú es un botón con esquinas redondeadas */
+[data-testid="stSidebar"] [role="radiogroup"] { gap: 4px; }
+[data-testid="stSidebar"] [role="radiogroup"] label {
+    padding: 10px 14px;
+    border-radius: 8px;
+    transition: background 0.15s;
+}
+/* Al pasar el mouse */
+[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: rgba(59, 130, 246, 0.12); }
+/* Opción seleccionada */
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
+    background: rgba(59, 130, 246, 0.22);
+    font-weight: 600;
+}
+
+/* Cuadro de información del menú lateral */
+[data-testid="stSidebar"] [data-testid="stAlert"] {
+    background: rgba(59, 130, 246, 0.10);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 10px;
+}
+
+/* ---------------------------------------------------------------------------
+   3. TARJETAS: métricas, formularios y tablas (fondo oscuro, sin blanco)
+   --------------------------------------------------------------------------- */
+/* Métricas (números grandes): tarjeta oscura con franja azul a la izquierda */
+[data-testid="stMetric"] {
+    background: #101a30;
+    border: 1px solid #24324f;
+    border-left: 4px solid #3b82f6;
+    border-radius: 10px;
+    padding: 16px 20px;
+}
+[data-testid="stMetricLabel"] { color: #94a3b8; font-weight: 500; }
+[data-testid="stMetricValue"] { color: #f1f5f9; font-weight: 700; }
+
+/* Formularios: tarjeta oscura con borde suave */
+[data-testid="stForm"] {
+    background: #101a30;
+    border: 1px solid #24324f;
+    border-radius: 12px;
+    padding: 28px;
+}
+
+/* Campos de texto, números y listas con esquinas redondeadas */
+[data-baseweb="input"], [data-baseweb="select"] > div { border-radius: 8px; }
+
+/* Tablas con borde y esquinas redondeadas */
+[data-testid="stDataFrame"] {
+    border: 1px solid #24324f;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* Mensajes (éxito, error, información) con esquinas redondeadas */
+[data-testid="stAlert"] { border-radius: 10px; }
+
+/* ---------------------------------------------------------------------------
+   4. BOTONES Y PESTAÑAS
+   --------------------------------------------------------------------------- */
+.stButton > button, [data-testid="stFormSubmitButton"] > button {
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 0.6rem 1.2rem;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+}
+
+/* Pestañas: letra mediana; la activa en azul con línea azul debajo */
+button[data-baseweb="tab"] { font-weight: 500; font-size: 1rem; padding: 12px 20px; }
+button[data-baseweb="tab"][aria-selected="true"] { color: #60a5fa !important; }
+[data-baseweb="tab-highlight"] { background-color: #3b82f6 !important; height: 3px; }
+
+/* ---------------------------------------------------------------------------
+   5. COMPONENTES PROPIOS (los usan banner.html, ficha.html y consulta_becas.py)
+   --------------------------------------------------------------------------- */
+/* Banner de la página de Inicio */
+.stApp .banner {
+    background: linear-gradient(120deg, #172554 0%, #1d4ed8 100%);
+    border: 1px solid #2a4a9c;
+    padding: 32px 36px;
+    border-radius: 14px;
+    margin-bottom: 24px;
+}
+.stApp .banner h1 { color: #ffffff; margin: 0; font-size: 1.9rem; font-weight: 700; }
+.stApp .banner p  { color: #bfdbfe; margin: 8px 0 0 0; font-size: 1rem; }
+
+/* Tarjetas de conteo (Con beca / Sin beca / Sin registro) con franja de color arriba */
+.stat {
+    background: #101a30;
+    border: 1px solid #24324f;
+    border-top: 4px solid #64748b;
+    border-radius: 10px;
+    padding: 18px 22px;
+}
+.stat span {
+    display: block;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.stat strong {
+    display: block;
+    color: #f1f5f9;
+    font-size: 2.1rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-top: 4px;
+}
+.stat-ok { border-top-color: #22c55e; }
+.stat-no { border-top-color: #ef4444; }
+.stat-na { border-top-color: #64748b; }
+
+/* Etiqueta de estado (con beca / sin beca / sin registro) */
+.badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.badge-ok { background: rgba(34, 197, 94, 0.15);  color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); }
+.badge-no { background: rgba(239, 68, 68, 0.15);  color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); }
+.badge-na { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.35); }
+
+/* Ficha del estudiante (consulta individual) */
+.ficha {
+    background: #101a30;
+    border: 1px solid #24324f;
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+}
+.ficha-cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 16px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid #24324f;
+}
+.ficha-cabecera h3 { margin: 0; font-size: 1.4rem; color: #f1f5f9; }
+.ficha-cabecera p  { margin: 4px 0 0 0; color: #94a3b8; }
+.ficha-datos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+}
+.ficha-datos small {
+    display: block;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.ficha-datos b { color: #e2e8f0; font-weight: 600; }
+
+/* Recuadro con el motivo del estado de la beca */
+.motivo {
+    margin-top: 18px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 4px solid #64748b;
+    background: rgba(148, 163, 184, 0.10);
+    color: #cbd5e1;
+    font-size: 0.95rem;
+}
+.motivo-ok { background: rgba(34, 197, 94, 0.12); border-left-color: #22c55e; color: #bbf7d0; }
+.motivo-no { background: rgba(239, 68, 68, 0.12); border-left-color: #ef4444; color: #fecaca; }

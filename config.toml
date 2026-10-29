@@ -1,0 +1,12 @@
+# =============================================================================
+# config.toml -> Tema (colores) general de Streamlit para el Sistema de Becas
+# Esta carpeta (.streamlit) va en la raíz del proyecto, junto a app.py.
+# Después de crearla o cambiarla, hay que detener y volver a correr streamlit.
+# =============================================================================
+
+[theme]
+base = "dark"                         # tema oscuro
+primaryColor = "#3b82f6"              # azul de botones, barras de progreso y acentos
+backgroundColor = "#0b1220"           # fondo de la página
+secondaryBackgroundColor = "#18233f"  # fondo de los campos de texto y listas
+textColor = "#e2e8f0"                 # color del texto

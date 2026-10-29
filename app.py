@@ -1,5 +1,27 @@
+# =============================================================================
+# app.py -> Archivo PRINCIPAL del Sistema de Becas (la interfaz que se ve)
+# Para correrlo:  streamlit run app.py
+#
+# Cómo está organizado el proyecto:
+#   app.py                    -> LÓGICA de la interfaz (Python)
+#   style.css                 -> ESTILOS (colores, bordes, sombras)
+#   plantillas/banner.html    -> ESTRUCTURA del banner de Inicio (HTML)
+#   plantillas/ficha.html     -> ESTRUCTURA de la ficha del estudiante (HTML)
+#   .streamlit/config.toml    -> TEMA general de colores de Streamlit
+# =============================================================================
+
+from pathlib import Path
+
 import streamlit as st
 import pandas as pd
+from archivos import cargar_datos, guardar_datos
+from estudiantes import modulo_estudiantes, ESTUDIANTES_INICIALES
+from academico import modulo_academico, PROMEDIO, REPROBADO
+from consulta_becas import modulo_consulta_becas
+
+# Carpeta donde está este archivo (así encuentra el CSS y el HTML sin importar
+# desde dónde se ejecute el programa)
+CARPETA = Path(__file__).parent
 
 # 1. Configuración de la página (debe ser el PRIMER comando de Streamlit)
 st.set_page_config(
@@ -8,246 +30,94 @@ st.set_page_config(
     layout="wide",
 )
 
-# Requisitos para mantener la beca (usados en el módulo Académico)
-PROMEDIO = 85.0
-REPROBADO = 0
+# 2. ESTILOS: leemos el archivo style.css y se lo pasamos a Streamlit.
+#    Se aplica a toda la app, incluyendo los formularios de los otros módulos.
+css = (CARPETA / "style.css").read_text(encoding="utf-8")
+st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
-# 2. Datos: todo vive en st.session_state para que NO se reinicie
-#    cada vez que Streamlit vuelve a ejecutar el script.
-ESTUDIANTES_INICIALES = [
-    {
-        "Nombre": "Luis",
-        "Edad": 18,
-        "carnet": 5647097,
-        "carrera": "Ingenieria electronica",
-        "correo": "luis@example.com",
-    },
-    {
-        "Nombre": "Elena",
-        "Edad": 21,
-        "carnet": 150408,
-        "carrera": "Ingenieria civil",
-        "correo": "elena@example.com",
-    },
-    {
-        "Nombre": "Martin",
-        "Edad": 25,
-        "carnet": 9876542,
-        "carrera": "Ingenieria en sistemas",
-        "correo": "mar@example.com",
-    },
-    {
-        "Nombre": "Andres",
-        "Edad": 22,
-        "carnet": 1234567,
-        "carrera": "Ingenieria industrial",
-        "correo": "andres@example.com",
-    },
-    {
-        "Nombre": "Valeria",
-        "Edad": 24,
-        "carnet": 1987450,
-        "carrera": "Ingenieria Computacion",
-        "correo": "valeria@example.com",
-    },
-]
+# 3. Cargar los datos de becas.json UNA sola vez.
+#    Streamlit vuelve a correr este archivo en cada clic, por eso se guardan
+#    en st.session_state: así no se pierden entre clics.
+if "datos" not in st.session_state:
+    st.session_state.datos = cargar_datos()
 
-if "estud_beca" not in st.session_state:
-    st.session_state.estud_beca = list(ESTUDIANTES_INICIALES)
+    # Primera vez que se usa el sistema: agregamos los estudiantes de ejemplo
+    if not st.session_state.datos["estudiantes"]:
+        st.session_state.datos["estudiantes"] = ESTUDIANTES_INICIALES.copy()
+        guardar_datos(st.session_state.datos)
 
-# Historial académico: {carnet (str): [ {Semestre, Promedio, Aprobado, Reprobados}, ... ]}
-if "academico" not in st.session_state:
-    st.session_state.academico = {}
+datos = st.session_state.datos
 
-
-def obtener_datos():
-    """Arma el diccionario `datos` que espera registro_semestre().
-
-    - datos["estudiantes"]: {carnet (str): info del estudiante}
-    - datos["academico"]:   el historial guardado en session_state
-    """
-    return {
-        "estudiantes": {str(e["carnet"]): e for e in st.session_state.estud_beca},
-        "academico": st.session_state.academico,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Lógica de Estudiantes (Yahosca)
-# ---------------------------------------------------------------------------
-def agregar_estudiante(nombre, edad, carnet, carrera, correo):
-    """Agrega un estudiante a la lista global (guardada en session_state)."""
-    estudiante = {
-        "Nombre": nombre,
-        "Edad": int(edad),
-        "carnet": int(carnet),
-        "carrera": carrera,
-        "correo": correo,
-    }
-    st.session_state.estud_beca.append(estudiante)
-
-
-def carnet_existe(carnet):
-    return any(e["carnet"] == int(carnet) for e in st.session_state.estud_beca)
-
-
-# ---------------------------------------------------------------------------
-# Lógica de Académico (Darlenne)
-# ---------------------------------------------------------------------------
-def registro_semestre(datos: dict, carnet: str, semestre: str, promedio: float, aprobadas: int, reprobadas: int):
-    """Valida y registra el semestre de un estudiante.
-
-    Devuelve (ok: bool, mensaje: str) para que la interfaz pueda mostrar
-    st.success o st.error según el resultado.
-    """
-    if carnet not in datos["estudiantes"]:
-        return False, "Su número de carnet no corresponde a ningún estudiante"
-    if not semestre.strip():
-        return False, "Debe especificar su semestre"
-    if not (0.0 <= promedio <= 100):
-        return False, "Ingrese un promedio entre 0.0 y 100.0"
-    if not isinstance(aprobadas, int) or not isinstance(reprobadas, int):
-        return False, "El número de asignaturas debe ser entero"
-    if aprobadas < 0 or reprobadas < 0:
-        return False, "El número de asignaturas no puede ser negativo"
-
-    historial = datos["academico"].setdefault(carnet, [])
-    historial.append(
-        {
-            "Semestre": semestre.strip(),
-            "Promedio": promedio,
-            "Aprobado": aprobadas,
-            "Reprobados": reprobadas,
-        }
-    )
-    return True, "Se ha registrado su semestre"
-
-
-# ---------------------------------------------------------------------------
-# Módulos de interfaz
-# ---------------------------------------------------------------------------
-def modulo_estudiantes():
-    st.title("Estudiantes")
-
-    if "mensaje_ok" in st.session_state:
-        st.success(st.session_state.pop("mensaje_ok"))
-
-    tab_lista, tab_agregar = st.tabs(["Lista de estudiantes", "Agregar estudiante"])
-
-    with tab_lista:
-        st.subheader("Estudiantes registrados")
-        st.dataframe(
-            st.session_state.estud_beca,
-            use_container_width=True,
-            hide_index=True,
-        )
-        st.caption(f"Total: {len(st.session_state.estud_beca)} estudiantes")
-
-    with tab_agregar:
-        st.subheader("Agregar nuevo estudiante")
-        with st.form(key="agregar_estudiante_form", clear_on_submit=True):
-            nombre = st.text_input("Nombre")
-            edad = st.number_input("Edad", min_value=0, max_value=120, step=1)
-            carnet = st.number_input("Carnet", min_value=0, step=1, format="%d")
-            carrera = st.text_input("Carrera")
-            correo = st.text_input("Correo")
-
-            enviado = st.form_submit_button("Agregar Estudiante")
-
-        if enviado:
-            if not nombre.strip() or not carrera.strip() or not correo.strip():
-                st.error("Nombre, carrera y correo son obligatorios.")
-            elif "@" not in correo:
-                st.error("El correo no es válido.")
-            elif carnet_existe(carnet):
-                st.error(f"Ya existe un estudiante con el carnet {int(carnet)}.")
-            else:
-                agregar_estudiante(nombre.strip(), edad, carnet, carrera.strip(), correo.strip())
-                st.session_state.mensaje_ok = f"Estudiante {nombre.strip()} agregado correctamente."
-                st.rerun()  # refresca la tabla con el nuevo estudiante
-
-
-def modulo_academico():
-    st.title("Académico")
-
-    if "mensaje_academico" in st.session_state:
-        st.success(st.session_state.pop("mensaje_academico"))
-
-    tab_registro, tab_historial = st.tabs(["Registrar semestre", "Historial académico"])
-
-    datos = obtener_datos()
-    opciones = {
-        f'{e["carnet"]} - {e["Nombre"]}': str(e["carnet"])
-        for e in st.session_state.estud_beca
-    }
-
-    with tab_registro:
-        st.subheader("Registrar semestre")
-        with st.form(key="registro_semestre_form", clear_on_submit=True):
-            seleccion = st.selectbox("Estudiante", list(opciones.keys()))
-            semestre = st.text_input("Semestre (ej: 2026-I)")
-            promedio = st.number_input("Promedio", min_value=0.0, max_value=100.0, step=0.1)
-            aprobadas = st.number_input("Asignaturas aprobadas", min_value=0, step=1)
-            reprobadas = st.number_input("Asignaturas reprobadas", min_value=0, step=1)
-
-            enviado = st.form_submit_button("Registrar semestre")
-
-        if enviado:
-            ok, mensaje = registro_semestre(
-                datos,
-                opciones[seleccion],
-                semestre,
-                float(promedio),
-                int(aprobadas),
-                int(reprobadas),
-            )
-            if ok:
-                st.session_state.mensaje_academico = mensaje
-                st.rerun()
-            else:
-                st.error(mensaje)
-
-    with tab_historial:
-        st.subheader("Historial académico")
-        if not opciones:
-            st.info("No hay estudiantes registrados.")
-            return
-
-        seleccion_h = st.selectbox("Estudiante", list(opciones.keys()), key="sel_historial")
-        carnet_h = opciones[seleccion_h]
-        historial = st.session_state.academico.get(carnet_h, [])
-
-        if not historial:
-            st.info("Este estudiante aún no tiene semestres registrados.")
-        else:
-            df = pd.DataFrame(historial)
-            df["Cumple requisitos"] = (df["Promedio"] >= PROMEDIO) & (df["Reprobados"] == REPROBADO)
-            df["Cumple requisitos"] = df["Cumple requisitos"].map({True: "Sí", False: "No"})
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            st.caption(
-                f"Requisitos: promedio ≥ {PROMEDIO} y {REPROBADO} asignaturas reprobadas."
-            )
-
-
-# ---------------------------------------------------------------------------
-# Navegación
-# ---------------------------------------------------------------------------
+# 4. Lista de páginas: un solo lugar para agregar o renombrar secciones
 PAGINAS = ["Inicio", "Estudiantes", "Académico", "Consulta de becas"]
 
-st.sidebar.title("Sistema de Becas 🎓")
+# 5. Barra lateral con el menú
+st.sidebar.title("Sistema de Becas")
 pagina = st.sidebar.radio("Navegación", PAGINAS)
+st.sidebar.divider()  # línea separadora
 st.sidebar.info("Sistema de Gestión y Seguimiento de Becas")
 
+# 6. Mostrar el contenido según la página elegida
 if pagina == "Inicio":
-    st.title("Sistema de Gestión y Seguimiento de Becas")
-    st.write("Bienvenido.")
+    # Banner de bienvenida: leemos la plantilla HTML y rellenamos sus huecos
+    banner = (CARPETA / "plantillas" / "banner.html").read_text(encoding="utf-8")
+    st.markdown(
+        banner.format(
+            titulo="Sistema de Gestión y Seguimiento de Becas",
+            subtitulo="Administra estudiantes, registra su rendimiento académico y consulta el estado de las becas.",
+        ),
+        unsafe_allow_html=True,
+    )
+
+    # --- Cálculo de los números del resumen ---
+    total_estudiantes = len(datos["estudiantes"])
+
+    # Contamos cuántos semestres se han registrado en total
+    total_semestres = 0
+    for historial in datos["academico"].values():
+        total_semestres += len(historial)
+
+    # Contamos cuántos estudiantes cumplen los requisitos en su ÚLTIMO semestre
+    con_beca = 0
+    for historial in datos["academico"].values():
+        if historial:
+            ultimo = historial[-1]
+            if ultimo["Promedio"] >= PROMEDIO and ultimo["Reprobados"] == REPROBADO:
+                con_beca += 1
+
+    # --- Tarjetas con los números (3 columnas) ---
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Estudiantes registrados", total_estudiantes)
+    col2.metric("Semestres registrados", total_semestres)
+    col3.metric("Cumplen requisitos de beca", con_beca)
+
+    st.write("")  # espacio en blanco
+
+    # # --- Gráfico de estudiantes por carrera ---
+    # st.subheader("Estudiantes por carrera")
+    # carreras = {}
+    # for estudiante in datos["estudiantes"].values():
+    #     carrera = estudiante["carrera"]
+    #     carreras[carrera] = carreras.get(carrera, 0) + 1  # sumamos 1 a esa carrera
+    # st.bar_chart(pd.Series(carreras))
+
+    # --- Guía rápida desplegable ---
+    with st.expander("¿Cómo se usa el sistema?"):
+        st.markdown(
+            f"""
+            1. Ve a **Estudiantes** para ver la lista o agregar un estudiante nuevo.
+            2. Ve a **Académico** para registrar el semestre de un estudiante y ver su historial.
+            3. Ve a **Consulta de becas** para ver quién tiene beca y por qué.
+            4. Para mantener la beca se necesita un promedio de **{PROMEDIO} o más** y
+               **{REPROBADO}** asignaturas reprobadas.
+            """
+        )
 
 elif pagina == "Estudiantes":
-    modulo_estudiantes()
+    modulo_estudiantes(datos)       # módulo de Yahosca
 
 elif pagina == "Académico":
-    modulo_academico()
+    modulo_academico(datos)         # módulo de Darlenne
 
 elif pagina == "Consulta de becas":
-    st.title("Consulta de becas")
-    st.info("En construcción (Jeffry)")
+    modulo_consulta_becas(datos)    # módulo de Jeffry
