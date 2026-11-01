@@ -1,0 +1,12 @@
+# =============================================================================
+# .streamlit/config.toml -> TEMA general de colores de Streamlit (azul UNI y blanco)
+# Streamlit lo lee solo al arrancar. Si lo cambias, reinicia la app.
+# =============================================================================
+
+[theme]
+base = "dark"
+primaryColor = "#5B9BFF"             # azul claro: barras de progreso, selección, enlaces
+backgroundColor = "#020F2A"          # fondo general (azul muy oscuro)
+secondaryBackgroundColor = "#0A1F4D" # fondo de campos, tablas y tarjetas
+textColor = "#FFFFFF"                # texto blanco
+font = "sans serif"
