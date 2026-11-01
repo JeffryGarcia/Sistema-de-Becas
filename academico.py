@@ -1,280 +1,355 @@
 # =============================================================================
-# academico.py -> Módulo ACADÉMICO (Darlenne)
+# academico.py -> Módulo académico (Darlenne)
 #
-# El historial se guarda en el diccionario `datos` así:
-#   datos["academico"] = { "carnet (como texto)": [ {semestre}, {semestre}, ... ] }
+# Marcas de los comentarios:
+#   # NUEVO:  -> algo que se agregó en esta versión
+#   # CAMBIO: -> algo que ya existía y se modificó
 # =============================================================================
 
-import math
-import re
+import re   # NUEVO: Importación del módulo de expresiones regulares para validar el formato del semestre (AAAA-I o AAAA-II)
 
 import streamlit as st
 import pandas as pd
-from archivos import guardar_datos
+from archivos import guardar_datos   # Importación de la función para persistir los cambios del semestre en becas.json
 
-# Requisitos para mantener la beca
-PROMEDIO = 85.0   # promedio mínimo
-REPROBADO = 0     # máximo de asignaturas reprobadas
-NOTA_APROBATORIA = 60.0
+# Definición de constantes globales para la evaluación de becas
+PROMEDIO = 85.0
+REPROBADO = 0
+
+# NUEVO: Nota mínima requerida para aprobar una asignatura. Antes estaba fijo en 60
+#        dentro de calcular_resultados; ahora se centraliza aquí y también lo usa el PDF.
+NOTA_APROBATORIA = 60
+
+# NUEVO: Clave de acceso administrativa requerida para habilitar la opción de eliminar semestres
+CLAVE_ADMIN = "admin123"
 
 
-# Se reciben los datos academicos, se validan que sean correctos y se registra el semestre del estudiante
-def registro_semestre(
-    datos: dict,
-    carnet: str,
-    semestre: str,
-    promedio: float,
-    aprobadas: int = 0,
-    reprobadas: int = 0,
-    asignaturas: list[dict] | None = None,
-):
+# NUEVO: Valida el semestre ingresado. Devuelve una cadena vacía "" si es correcto, o un mensaje de error si falla.
+#   - Solo se aceptan dos semestres por año: AAAA-I y AAAA-II (ej: 2026-I, 2026-II)
+#   - Un estudiante no puede tener el mismo semestre registrado dos veces
+def validar_semestre(datos: dict, carnet: str, semestre: str):
+    semestre = semestre.strip().upper()   # Limpia espacios y convierte a mayúsculas ("2026-i" se normaliza como "2026-I")
+
+    # re.fullmatch comprueba que la cadena cumpla exactamente: cuatro dígitos, un guion, y una 'I' o 'II'
+    if not re.fullmatch(r"\d{4}-(I|II)", semestre):
+        return "El semestre debe tener el formato AAAA-I o AAAA-II (ejemplo: 2026-I)"
+
+    # Validación de duplicidad: Revisa que el semestre no esté previamente registrado en el historial del estudiante
+    for registro in datos["academico"].get(carnet, []):
+        if str(registro.get("Semestre", "")).strip().upper() == semestre:
+            return f"El semestre {semestre} ya está registrado para este estudiante"
+
+    return ""
+
+
+# Función auxiliar para descomponer y ordenar el historial académico por fecha cronológica.
+def clave_semestre(registro: dict):
+    try:
+        # Separa el año y el periodo (ej: "2026-I" -> anio="2026", periodo="I")
+        anio, periodo = registro["Semestre"].strip().upper().split("-")
+        # Retorna una tupla de ordenamiento: (Año numérico, 2 si es periodo II, o 1 si es periodo I)
+        return (int(anio), 2 if periodo == "II" else 1)
+    except (KeyError, AttributeError, ValueError):
+        # Retorna valores por defecto si ocurre algún error de lectura en las claves
+        return (0, 0)
+
+
+# NUEVO: Arma la tabla del historial visualizada en el módulo Académico y en Consulta de becas.
+#        Calcula la columna "Cumple requisitos" aplicando la misma regla de beca (promedio y reprobados).
+#        Lo almacenado en becas.json permanece intacto; esto modifica únicamente la visualización.
+def tabla_historial(historial: list):
+    tabla = pd.DataFrame(historial)
+    # Comprueba fila por fila si cumple con el promedio mínimo y el máximo de reprobadas permitidas
+    cumple = (tabla["Promedio"] >= PROMEDIO) & (tabla["Reprobados"] <= REPROBADO)
+    tabla["Cumple requisitos"] = cumple.map({True: "Sí", False: "No"})
+    return tabla[["Semestre", "Promedio", "Reprobados", "Cumple requisitos"]]
+
+
+# Función central: recibe los datos académicos, valida su integridad y registra formalmente el semestre del estudiante
+def registro_semestre(datos: dict, carnet: str, semestre: str, asignaturas):
+    # Condición de guarda: verifica si el carnet existe dentro de la base de datos de estudiantes
     if carnet not in datos["estudiantes"]:
         return "Su número de carnet no corresponde a ningún estudiante"
+    
+    # Valida que el campo del semestre no esté vacío
     if not semestre.strip():
-        return "Debe especificar el semestre"
-    if not re.fullmatch(r"\d{4}-(?:I|II)", semestre.strip()):
-        return "El semestre debe tener el formato AAAA-I o AAAA-II (ejemplo: 2026-I)"
-    try:
-        promedio = float(promedio)
-    except (TypeError, ValueError):
-        return "Ingrese un promedio mayor que 0 y hasta 100"
-    if not math.isfinite(promedio) or not (0 < promedio <= 100):
-        return "Ingrese un promedio mayor que 0 y hasta 100"
-
-    registros_asignaturas = []
-    if asignaturas is not None:
-        if not asignaturas:
-            return "Registre al menos una asignatura"
-        for asignatura in asignaturas:
-            if not isinstance(asignatura, dict):
-                return "Los datos de las asignaturas no son válidos"
-            nombre = str(asignatura.get("Asignatura", "")).strip()
-            try:
-                nota = float(asignatura.get("Nota"))
-            except (TypeError, ValueError):
-                return f"Ingrese una nota válida para {nombre or 'cada asignatura'}"
-            if not nombre:
-                return "Debe completar el nombre de cada asignatura"
-            if not math.isfinite(nota) or not 0 <= nota <= 100:
-                return f"La nota de {nombre} debe estar entre 0 y 100"
-            registros_asignaturas.append({
-                "Asignatura": nombre,
-                "Nota": nota,
-                "Estado": "Aprobada" if nota >= NOTA_APROBATORIA else "Reprobada",
-            })
-        aprobadas = sum(
-            asignatura["Estado"] == "Aprobada"
-            for asignatura in registros_asignaturas
-        )
-        reprobadas = len(registros_asignaturas) - aprobadas
-    elif (
-        type(aprobadas) is not int
-        or type(reprobadas) is not int
-        or aprobadas < 0
-        or reprobadas < 0
-    ):
-        return "El número de asignaturas debe ser un entero no negativo"
-
-    historial = datos.setdefault("academico", {}).setdefault(carnet, [])
+        return "Debe específicar su semestre"
+        
+    # Valida el formato estructurado (AAAA-I / AAAA-II) y evita que esté duplicado
+    error_semestre = validar_semestre(datos, carnet, semestre)
+    if error_semestre:
+        return error_semestre
+        
+    semestre = semestre.strip().upper()   # Normaliza el formato del semestre antes de almacenarlo
+    
+    if not asignaturas:
+        return "Debe ingresar asignaturas"
+        
+    # Ejecuta el procesamiento y cálculo de notas de las asignaturas ingresadas
+    resultados = calcular_resultados(asignaturas)
+    
+    # Obtiene o inicializa la lista del historial académico correspondiente al carnet
+    Historial = datos["academico"].setdefault(carnet, [])
+    
+    # Construye el diccionario con la estructura completa del nuevo registro académico
     nuevo_registro = {
-        "Semestre": semestre.strip(),
-        "Promedio": promedio,
-        "Aprobado": aprobadas,
-        "Reprobados": reprobadas
+        "Semestre": semestre,
+        "Promedio": resultados["Promedio"],
+        "Aprobado": resultados["Aprobado"],
+        "Reprobados": resultados["Reprobados"],
+        # NUEVO: Almacena la lista detallada de asignaturas con sus respectivas notas. 
+        #        Anteriormente se usaban solo para calcular el promedio y se descartaban; ahora el PDF las incluye.
+        "Asignaturas": [{"Nombre": a["Nombre"], "Notas": a["Notas"]} for a in asignaturas],
     }
-    if asignaturas is not None:
-        nuevo_registro["Asignaturas"] = registros_asignaturas
-    historial.append(nuevo_registro)
+    
+    # Inserta el nuevo registro en la lista del historial
+    Historial.append(nuevo_registro)
+    
+    # NUEVO: Ordena automáticamente el historial cronológicamente, garantizando que el "último semestre" 
+    #        (utilizado para evaluar la beca) corresponda siempre al más reciente, incluso si se registra de forma retroactiva.
+    Historial.sort(key=clave_semestre)
     return "Se ha registrado su semestre"
 
 
-# Lo que se ve en la página "Académico"
-def modulo_academico(datos):
+# Función de consola interactiva (solicita cantidad y notas mediante input()/print()).
+# Nota: Esta función NO se utiliza en la interfaz Streamlit (se mantiene por compatibilidad/legacy).
+def solicitar_asignatura():
+    asignaturas = []
+    while True:
+        try:
+            cantidad = int(input("Ingrese cuantas asignaturas cursa actualmente:"))
+            if cantidad > 0:
+                break
+            print("Debe ingresar al menos una asignatura")
+        except ValueError:
+            print("Debe de ingresar un número entero")
+
+    for i in range(cantidad):
+        nombre = input(f"Ingrese el nombre de su asignatura:{i + 1}")
+        while True:
+            try:
+                notas = float(input(f"Ingresa su nota de:{nombre}"))
+                if 0 <= notas <= 100:
+                    break
+                print("La nota debe de estar entre 0 y 100")
+            except ValueError:
+                print("Error, verifique su respuesta, (Recuerde que debe ingresar un valor numerico)")
+         
+        asignatura = {
+            "Nombre": nombre,
+            "Notas": notas
+        }
+        asignaturas.append(asignatura)
+
+    return asignaturas
+
+
+# Función matemática encargada de calcular el promedio aritmético, materias aprobadas y reprobadas
+def calcular_resultados(asignaturas):
+    # Suma total de las calificaciones obtenidas en todas las asignaturas
+    suma_notas = sum(a["Notas"] for a in asignaturas)
+
+    # Cálculo del promedio aritmético dividiendo la sumatoria entre el total de materias
+    prom = suma_notas / len(asignaturas)
+
+    # CAMBIO: Antes evaluaba explícitamente >=60; ahora utiliza la constante centralizada NOTA_APROBATORIA (valor equivalente: 60)
+    aprobadas = sum(1 for a in asignaturas if a["Notas"] >= NOTA_APROBATORIA)
+
+    # El número de reprobadas resulta de restar las aprobadas al total de materias cursadas
+    reprobados = len(asignaturas) - aprobadas
+
+    # Retorna un diccionario estructurado con los resultados analíticos calculados
+    return {
+        "Promedio": round(prom, 2),
+        "Aprobado": prom >= PROMEDIO and reprobados == REPROBADO,  # Valida si cumple globalmente los requisitos de beca
+        "Reprobados": reprobados,
+    }
+
+
+# Función para reiniciar el formulario de registro académico modificando la versión (aca_v) integrada en las keys de Streamlit.
+# Al cambiar la key, Streamlit interpreta los componentes como elementos totalmente nuevos y limpios.
+def reiniciar_formulario():
+    st.session_state["aca_v"] = st.session_state.get("aca_v", 0) + 1
+    st.session_state["aca_cantidad_ok"] = False   # Restablece la confirmación de la cantidad de asignaturas
+    st.session_state["aca_bloqueado"] = False     # Permite nuevamente la edición de las notas
+
+
+# Función principal del módulo académico llamada por la aplicación principal (app.py).
+# Reemplaza los flujos de consola por componentes interactivos nativos de Streamlit.
+def modulo_academico(datos: dict):
     st.title("Académico")
 
-    # Lista desplegable: se ve "carnet - nombre", pero por dentro usamos el carnet
-    opciones = {}
-    for carnet, estudiante in datos["estudiantes"].items():
-        opciones[f"{carnet} - {estudiante['Nombre']}"] = carnet
-
-    if not opciones:
-        st.info("No hay estudiantes registrados.")
+    # Condición de guarda: exige que existan estudiantes registrados antes de permitir acceso al módulo
+    if not datos["estudiantes"]:
+        st.warning("Primero debes registrar estudiantes.")
         return
 
-    # Dos pestañas: registrar semestre e historial
-    tab_registro, tab_historial = st.tabs(["Registrar semestre", "Historial académico"])
+    # Inicialización de las variables de estado en la sesión de Streamlit para controlar el flujo del formulario
+    st.session_state.setdefault("aca_v", 0)
+    st.session_state.setdefault("aca_cantidad_ok", False)
+    st.session_state.setdefault("aca_bloqueado", False)
 
-    # Llenamos primero "registrar" y después el historial,
-    # así el historial ya sale actualizado cuando se registra un semestre.
-    with tab_registro:
-        st.subheader("Registrar semestre")
-        st.caption(f"Para mantener la beca: promedio de {PROMEDIO} o más y {REPROBADO} reprobadas.")
-        seleccion = st.selectbox(
-            "Estudiante",
-            list(opciones.keys()),
-            key="academico_estudiante",
-        )
-        carnet = opciones[seleccion]
-        st.caption(f"Las asignaturas quedarán asociadas al carnet {carnet}.")
+    # Renderiza un mensaje de éxito persistente si este fue almacenado antes de un rerun
+    if "aca_mensaje" in st.session_state:
+        st.success(st.session_state.pop("aca_mensaje"))
 
-        carnet_anterior = st.session_state.get("academico_carnet_activo")
-        if carnet_anterior is not None and carnet_anterior != carnet:
-            for clave in list(st.session_state):
-                if clave.startswith(("academico_asignatura_", "academico_nota_")) or clave in {
-                    "academico_semestre",
-                    "academico_promedio",
-                }:
-                    del st.session_state[clave]
-            st.session_state["academico_filas"] = [0]
-            st.session_state["academico_siguiente_fila"] = 1
-        st.session_state["academico_carnet_activo"] = carnet
-        st.session_state.setdefault("academico_filas", [0])
-        st.session_state.setdefault("academico_siguiente_fila", 1)
+    # CAMBIO: Muestra el selector combinando "carnet - nombre" (idéntico al formato de Consulta de becas).
+    #         format_func personaliza la visualización del menú desplegable sin alterar el valor devuelto (el carnet).
+    carnet = st.selectbox(
+        "Estudiante",
+        list(datos["estudiantes"].keys()),
+        format_func=lambda c: f"{c} - {datos['estudiantes'][c]['Nombre']}",
+        key="aca_carnet",
+    )
 
-        col1, col2 = st.columns(2)
-        semestre = col1.text_input(
-            "Semestre",
-            placeholder="Ej: 2026-I",
-            help="Use el año y el período en números romanos: 2026-I o 2026-II.",
-            key="academico_semestre",
-        )
-        promedio_texto = col2.text_input(
-            "Promedio (0 a 100)",
-            placeholder="Ej: 85.5",
-            key="academico_promedio",
-        )
+    # Si se cambia de estudiante activo, se limpia el formulario para evitar mezclar notas entre perfiles distintos
+    if "aca_carnet_activo" in st.session_state and st.session_state["aca_carnet_activo"] != carnet:
+        reiniciar_formulario()
+    st.session_state["aca_carnet_activo"] = carnet
 
-        st.markdown("**Asignaturas y notas**")
-        st.caption(
-            f"Una nota de {NOTA_APROBATORIA:g} o más cuenta como aprobada. "
-            "El sistema calculará los conteos automáticamente."
-        )
-        if st.button("Agregar asignatura", key="academico_agregar_fila"):
-            siguiente = st.session_state["academico_siguiente_fila"]
-            st.session_state["academico_filas"].append(siguiente)
-            st.session_state["academico_siguiente_fila"] = siguiente + 1
+    v = st.session_state["aca_v"]
+    cantidad_ok = st.session_state["aca_cantidad_ok"]
+    bloqueado = st.session_state["aca_bloqueado"]
 
-        asignaturas = []
-        errores = []
-        if not semestre.strip():
-            errores.append("Semestre")
-        elif not re.fullmatch(r"\d{4}-(?:I|II)", semestre.strip()):
-            errores.append("Semestre (formato AAAA-I o AAAA-II)")
+    st.caption(f"Las asignaturas quedarán asociadas al carnet {carnet}.")
+    st.caption(f"Para mantener la beca: promedio de {PROMEDIO} o más y {REPROBADO} reprobadas.")
 
-        promedio = None
-        if not promedio_texto.strip():
-            errores.append("Promedio")
-        else:
-            try:
-                promedio = float(promedio_texto)
-            except ValueError:
-                errores.append("Promedio (debe ser un número)")
-            else:
-                if not math.isfinite(promedio) or not (0 < promedio <= 100):
-                    errores.append("Promedio (debe ser mayor que 0 y hasta 100)")
+    # Campo de texto para ingresar el semestre a cursar
+    semestre = st.text_input("Semestre (ej: 2026-I)", key=f"aca_semestre_{v}")
 
-        for numero, fila in enumerate(list(st.session_state["academico_filas"]), start=1):
-            col_nombre, col_nota, col_quitar = st.columns([5, 2, 1])
-            if col_quitar.button(
-                "Quitar",
-                key=f"academico_quitar_{fila}",
-                disabled=len(st.session_state["academico_filas"]) == 1,
-            ):
-                st.session_state["academico_filas"].remove(fila)
-                st.session_state.pop(f"academico_asignatura_{fila}", None)
-                st.session_state.pop(f"academico_nota_{fila}", None)
-                continue
-            nombre = col_nombre.text_input(
-                f"Asignatura {numero}",
-                key=f"academico_asignatura_{fila}",
-            )
-            nota_texto = col_nota.text_input(
-                f"Nota {numero}",
-                placeholder="0 a 100",
-                key=f"academico_nota_{fila}",
-            )
+    # Control numérico para definir la cantidad de asignaturas. Se bloquea (disabled) una vez confirmada la cantidad.
+    cantidad = st.number_input("Cantidad de asignaturas", min_value=1, step=1, value=1,
+                               key=f"aca_cantidad_{v}", disabled=cantidad_ok)
+
+    # Botones de control para confirmar la cantidad o reiniciar el proceso de captura
+    if not cantidad_ok:
+        if st.button("Confirmar cantidad de asignaturas"):
+            st.session_state["aca_cantidad_ok"] = True
+            st.rerun()
+    else:
+        if st.button("Empezar de nuevo"):
+            reiniciar_formulario()
+            st.rerun()
+
+    asignaturas = []
+    errores = []
+
+    # Validación preliminar de campos vacíos o errores en el semestre
+    if not semestre.strip():
+        errores.append("Semestre")
+    else:
+        # NUEVO: Validación interactiva del semestre (formato y verificación de duplicidad)
+        mensaje_semestre = validar_semestre(datos, carnet, semestre)
+        if mensaje_semestre:
+            errores.append(f"Semestre ({mensaje_semestre})")
+            
+    if not cantidad_ok:
+        errores.append("Confirmar cantidad de asignaturas")
+
+    # Renderiza dinámicamente las casillas de texto y notas únicamente después de confirmar la cantidad de asignaturas
+    if cantidad_ok:
+        for i in range(int(cantidad)):
+            col1, col2 = st.columns([3, 1])
+            # Se bloquean los campos si ya se calculó el promedio (para impedir ediciones directas sin desbloquear)
+            nombre = col1.text_input(f"Asignatura {i + 1}", key=f"aca_nombre_{v}_{i}",
+                                     disabled=bloqueado)
+            # value=None inicializa la casilla vacía para verificar obligatoriedad de ingreso
+            nota = col2.number_input("Nota", min_value=0.0, max_value=100.0,
+                                     step=0.5, value=None, key=f"aca_nota_{v}_{i}",
+                                     disabled=bloqueado)
+
+            # Valida individualmente que cada componente posea datos válidos
             if not nombre.strip():
-                errores.append(f"Asignatura {numero}")
-            if not nota_texto.strip():
-                errores.append(f"Nota de asignatura {numero}")
+                errores.append(f"Asignatura {i + 1}")
+            if nota is None:
+                errores.append(f"Nota de asignatura {i + 1}")
+
+            # Almacena de manera estructurada la asignatura completada exitosamente
+            if nombre.strip() and nota is not None:
+                asignaturas.append({"Nombre": nombre, "Notas": nota})
+
+    # Despliega advertencias visuales si existen campos pendientes o erróneos en el formulario
+    if errores:
+        st.warning("Complete o corrija estos campos: " + ", ".join(errores) + ".")
+
+    # Botón para procesar los cálculos de notas. Una vez accionado, bloquea la edición de notas.
+    if cantidad_ok and not bloqueado:
+        if st.button("Calcular promedio", disabled=bool(errores)):
+            st.session_state["aca_bloqueado"] = True
+            st.rerun()
+
+    # Bloque de visualización tras calcular exitosamente el promedio del semestre
+    if cantidad_ok and bloqueado and not errores:
+        resultados = calcular_resultados(asignaturas)
+        col_a, col_b, col_c = st.columns(3)
+        col_a.metric("Promedio del semestre", resultados["Promedio"])
+        col_b.metric("Asignaturas reprobadas", resultados["Reprobados"])
+        col_c.metric("Cumple requisitos de beca", "Sí" if resultados["Aprobado"] else "No")
+
+        # Botón para corregir notas: desbloquea las casillas y permite reestructurar el ingreso de calificaciones
+        if st.button("Corregir notas"):
+            st.session_state["aca_bloqueado"] = False
+            st.rerun()
+
+        # Botón principal para formalizar el registro del semestre y guardarlo en el archivo JSON
+        if st.button("Registrar semestre", type="primary", disabled=bool(errores)):
+            mensaje = registro_semestre(datos, carnet, semestre, asignaturas)
+            if mensaje == "Se ha registrado su semestre":
+                guardar_datos(datos)   # Persiste los cambios en el almacenamiento local (JSON)
+                st.session_state["aca_mensaje"] = mensaje
+                reiniciar_formulario() # Limpia los campos para facilitar un registro posterior
+                st.rerun()
             else:
-                try:
-                    nota = float(nota_texto)
-                except ValueError:
-                    errores.append(f"Nota de asignatura {numero} (debe ser numérica)")
-                else:
-                    if not math.isfinite(nota) or not 0 <= nota <= 100:
-                        errores.append(f"Nota de asignatura {numero} (de 0 a 100)")
-                    else:
-                        asignaturas.append({"Asignatura": nombre, "Nota": nota})
+                st.error(mensaje)
 
-        if errores:
-            st.warning("Complete o corrija estos campos: " + ", ".join(errores) + ".")
+    # Sección de visualización del historial académico en formato tabular interactivo
+    st.subheader("Historial académico")
+    historial = datos["academico"].get(carnet, [])
+    if historial:
+        # Renderiza la tabla utilizando la función auxiliar tabla_historial()
+        st.dataframe(tabla_historial(historial), width="stretch", hide_index=True)
+    else:
+        st.info("Este estudiante aún no tiene semestres registrados.")
 
-        enviado = st.button(
-            "Registrar semestre",
-            type="primary",
-            width="stretch",
-            disabled=bool(errores),
-        )
-        if enviado:
-            resultado = registro_semestre(
-                datos,
-                carnet,
-                semestre,
-                promedio,
-                asignaturas=asignaturas,
-            )
-            if resultado == "Se ha registrado su semestre":
-                if guardar_datos(datos):
-                    st.success(resultado)
-                else:
-                    st.error("El semestre se registró, pero no se pudo guardar en el archivo.")
-            else:
-                st.error(resultado)
+    # Panel colapsable de administración protegido mediante contraseña para eliminar registros de semestres
+    with st.expander("Opciones de administrador"):
+        clave = st.text_input("Clave de administrador", type="password", key="aca_clave")
 
-    with tab_historial:
-        st.subheader("Historial académico")
-
-        seleccion_h = st.selectbox("Estudiante", list(opciones.keys()), key="sel_historial")
-        historial = datos["academico"].get(opciones[seleccion_h], [])
-
-        if not historial:
-            st.info("Este estudiante aún no tiene semestres registrados.")
+        if clave != CLAVE_ADMIN:
+            if clave:
+                st.error("Clave incorrecta.")
+        elif not historial:
+            st.info("Este estudiante no tiene semestres para eliminar.")
         else:
-            # Tabla del historial + columna que dice si cumple los requisitos de la beca
-            tabla = pd.DataFrame([
-                {clave: valor for clave, valor in registro.items() if clave != "Asignaturas"}
-                for registro in historial
-            ])
-            cumple = (tabla["Promedio"] >= PROMEDIO) & (tabla["Reprobados"] == REPROBADO)
-            tabla["Cumple requisitos"] = cumple.map({True: "Sí", False: "No"})
+            st.caption(f"Eliminar semestres del carnet {carnet}. Esta acción no se puede deshacer.")
 
-            # Tarjetas con el resumen del estudiante
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Semestres cursados", len(tabla))
-            col2.metric("Promedio general", f"{tabla['Promedio'].mean():.1f}")
-            # El estado se basa en el ÚLTIMO semestre registrado
-            col3.metric("Estado actual", "Cumple" if cumple.iloc[-1] else "No cumple")
+            # Control de versión para limpiar la selección de elementos múltiples tras la eliminación
+            vd = st.session_state.setdefault("aca_del_v", 0)
 
-            # El promedio se muestra como barra de progreso de 0 a 100
-            st.dataframe(
-                tabla,
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "Promedio": st.column_config.ProgressColumn(
-                        "Promedio", min_value=0, max_value=100, format="%.1f"
-                    ),
-                },
-            )
-            for registro in historial:
-                asignaturas = registro.get("Asignaturas", [])
-                if asignaturas:
-                    with st.expander(f"Asignaturas de {registro['Semestre']}"):
-                        st.dataframe(
-                            pd.DataFrame(asignaturas),
-                            width="stretch",
-                            hide_index=True,
-                        )
-            st.caption(f"Requisitos: promedio ≥ {PROMEDIO} y {REPROBADO} asignaturas reprobadas.")
+            # Mapea los registros existentes asociándolos con un identificador textual descriptivo
+            opciones_eliminar = {}
+            for i, registro in enumerate(historial):
+                texto = (f"{i + 1}. {registro['Semestre']} | Promedio {registro['Promedio']} "
+                         f"| Reprobados {registro['Reprobados']}")
+                opciones_eliminar[texto] = i
+
+            elegidos = st.multiselect("Semestres a eliminar", list(opciones_eliminar.keys()),
+                                       key=f"aca_del_sel_{carnet}_{vd}")
+            confirmar = st.checkbox("Confirmo que quiero eliminar los semestres seleccionados",
+                                    key=f"aca_del_conf_{carnet}_{vd}")
+
+            # Acción de borrado: requiere la selección de los elementos y la confirmación mediante casilla de verificación
+            if st.button("Eliminar semestres seleccionados", disabled=not (elegidos and confirmar)):
+                # Ordena los índices seleccionados de mayor a menor para evitar corrimientos indeseados al realizar pop()
+                posiciones = sorted((opciones_eliminar[e] for e in elegidos), reverse=True)
+                for posicion in posiciones:
+                    historial.pop(posicion)
+                    
+                # Si el estudiante se queda sin semestres registrados, se elimina por completo su clave del diccionario académico
+                if not historial:
+                    datos["academico"].pop(carnet, None)
+                    
+                guardar_datos(datos)   # Actualiza los cambios persistentes en disco
+                st.session_state["aca_mensaje"] = f"Se eliminaron {len(posiciones)} semestre(s)."
+                st.session_state["aca_del_v"] = vd + 1
+                st.rerun()
