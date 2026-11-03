@@ -46,6 +46,13 @@ st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 LOGO = CARPETA / "assets" / "logo_claro.png"
 st.logo(str(LOGO), size="large")
 LOGO_B64 = base64.b64encode(LOGO.read_bytes()).decode()
+# NUEVO: Logo de la UNI, fijo en la esquina derecha de la barra superior
+LOGO_UNI = CARPETA / "assets" / "logo_uni.png"
+LOGO_UNI_B64 = base64.b64encode(LOGO_UNI.read_bytes()).decode()
+st.markdown(
+    f'<img class="logo-uni" src="data:image/png;base64,{LOGO_UNI_B64}" alt="Universidad Nacional de Ingeniería">',
+    unsafe_allow_html=True,
+)
 
 # 3. Carga inicial persistente de la base de datos (becas.json) mediante archivos.py.
 #    Streamlit reejecuta todo el script ante cualquier interacción del usuario; por ello, los datos se almacenan
