@@ -1,28 +1,28 @@
 /* =============================================================================
-   style.css -> ESTILOS de SG UNI (tema oscuro, azul UNI y blanco)
+style.css -> ESTILOS de SG UNI (tema oscuro, azul UNI y blanco)
 
-   Cómo está organizado:
-     1. Colores y tipografía  (las variables de :root: cambia un color aquí y cambia en todo)
-     2. Estructura general    (fondo, barra superior, títulos)
-     3. Componentes de Streamlit (métricas, pestañas, botones, campos)
-     4. Componentes propios   (banner, tarjetas .stat, ficha del estudiante)
-   ============================================================================= */
+Cómo está organizado:
+    1. Colores y tipografía  (las variables de :root: cambia un color aquí y cambia en todo)
+    2. Estructura general    (fondo, barra superior, logo, títulos)
+    3. Componentes de Streamlit (métricas, pestañas, botones, campos)
+    4. Componentes propios   (banner, tarjetas .stat, ficha del estudiante)
+============================================================================= */
 
 /* Tipografía: títulos y texto con Inter. Si no hay internet se usa la letra del sistema. */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* ---------- 1. COLORES Y TIPOGRAFÍA ---------- */
 :root {
-    --uni: #003485;              /* el azul UNI (sacado del escudo) */
-    --uni-claro: #0a4fc4;        /* azul UNI más vivo, para degradados */
-    --uni-oscuro: #00235c;       /* azul UNI más oscuro, para tarjetas */
-    --fondo: #020f2a;            /* fondo general */
-    --superficie: #0a1f4d;       /* fondo de tarjetas y tablas */
-    --acento: #5b9bff;           /* azul claro para destacar números y detalles */
+    --uni: #003485;            /* el azul UNI (sacado del escudo) */
+    --uni-claro: #0a4fc4;      /* azul UNI más vivo, para degradados */
+    --uni-oscuro: #00235c;     /* azul UNI más oscuro, para tarjetas */
+    --fondo: #020f2a;          /* fondo general */
+    --superficie: #0a1f4d;     /* fondo de tarjetas y tablas */
+    --acento: #5b9bff;         /* azul claro para destacar números y detalles */
     --blanco: #ffffff;
-    --texto-suave: #aebfdf;      /* texto secundario * b/
+    --texto-suave: #aebfdf;    /* texto secundario */
     --borde: rgba(255, 255, 255, 0.14);   /* línea blanca suave */
-    --verde: #3ecf8e;            /* verde / rojo: significan beca / sin beca, no se cambian */
+    --verde: #3ecf8e;          /* verde / rojo: significan beca / sin beca, no se cambian */
     --rojo: #ff6b78;
     --fuente: 'Inter', system-ui, sans-serif;
 }
@@ -41,8 +41,30 @@
     background: rgba(0, 35, 92, 0.94);
     backdrop-filter: blur(6px);
     border-bottom: 1px solid var(--borde);
+    height: 7rem !important;   /* altura justa para el logo */
 }
 
+/* Logo (st.logo): cabe dentro de la barra con un poco de aire */
+[data-testid="stHeaderLogo"] {
+    height: 8rem !important;
+    max-height: none !important;
+    width: auto !important;
+    margin: 0.5rem 0 0.5rem 0.5rem !important;
+    object-fit: contain !important;
+}
+/* Logo de la UNI: fijo a la derecha de la barra superior, en pastilla blanca para que se lea */
+.logo-uni {
+    position: fixed;
+    top: 0.5rem;             /* centrado: (7rem - 6rem) / 2 */
+    right: 10rem;            /* más al centro; sube el número para acercarlo más */
+    height: 6rem;            /* cabe en la barra de 7rem con aire arriba y abajo */
+    width: auto;
+    object-fit: contain;
+    z-index: 1000000;
+}/* Saca de la página el contenedor vacío para que no deje el hueco que se ve arriba */
+[data-testid="stHeader"] { height: 8.5rem !important; }
+.logo-uni { top: 0.75rem; height: 7rem; }
+[data-testid="stMainBlockContainer"] { padding-top: 9.5rem !important; }
 /* Se oculta el botón "Deploy" para que no distraiga */
 .stAppDeployButton,
 [data-testid="stAppDeployButton"] {
@@ -50,12 +72,23 @@
 }
 
 /* Títulos */
-h1, h2, h3,
+h1,
+h2,
+h3,
 [data-testid="stHeading"] {
     font-family: var(--fuente);
     font-weight: 700;
     color: var(--blanco);
     letter-spacing: -0.2px;
+}
+
+/* Limita el ancho del contenido para que los formularios no se estiren
+   y lo baja para que empiece justo debajo de la barra superior */
+[data-testid="stMainBlockContainer"] {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-top: 5.5rem !important;
 }
 
 /* ---------- 3. COMPONENTES DE STREAMLIT ---------- */
@@ -68,9 +101,11 @@ h1, h2, h3,
     border-radius: 14px;
     padding: 16px 20px;
 }
+
 [data-testid="stMetricLabel"] {
     color: #cfdcf5;
 }
+
 [data-testid="stMetricValue"] {
     font-weight: 800;
     color: var(--blanco);
@@ -80,9 +115,11 @@ h1, h2, h3,
 [data-baseweb="tab"] {
     color: var(--texto-suave);
 }
+
 [data-baseweb="tab"][aria-selected="true"] {
     color: var(--blanco);
 }
+
 [data-baseweb="tab-highlight"] {
     background-color: var(--acento);
 }
@@ -95,17 +132,20 @@ h1, h2, h3,
     border: none;
     font-weight: 700;
 }
+
 [data-testid="stBaseButton-primary"]:hover,
 [data-testid="stBaseButton-primaryFormSubmit"]:hover {
     background: #dce8ff;
     color: var(--uni);
 }
+
 /* Botones secundarios: borde blanco suave, fondo transparente */
 [data-testid="stBaseButton-secondary"] {
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: var(--blanco);
 }
+
 [data-testid="stBaseButton-secondary"]:hover {
     border-color: var(--acento);
     color: var(--acento);
@@ -141,21 +181,25 @@ h1, h2, h3,
         radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.16), transparent 45%),
         linear-gradient(120deg, var(--uni), var(--uni-claro) 130%);
 }
+
 .banner-logo {
     height: 200px;
     width: auto;
     flex-shrink: 0;
 }
+
 .banner-texto {
     border-left: 1px solid rgba(255, 255, 255, 0.35);
     padding-left: 28px;
 }
+
 .banner-titulo {
     font-size: 1.9rem;
     font-weight: 800;
     line-height: 1.2;
     color: var(--blanco);
 }
+
 .banner-subtitulo {
     margin-top: 8px;
     font-size: 1rem;
@@ -163,8 +207,8 @@ h1, h2, h3,
 }
 
 /* ----- Tarjetas de estado de beca (.stat) -----
-   Se usan en Inicio y en Consulta de becas:
-   <div class="stat stat-ok"><span>Con beca</span><strong>3</strong></div> */
+Se usan en Inicio y en Consulta de becas:
+<div class="stat stat-ok"><span>Con beca</span><strong>3</strong></div> */
 .stat {
     background: linear-gradient(160deg, var(--superficie), var(--fondo));
     border: 1px solid var(--borde);
@@ -172,6 +216,7 @@ h1, h2, h3,
     border-radius: 14px;
     padding: 14px 18px;
 }
+
 .stat span {
     display: block;
     font-size: 0.72rem;
@@ -179,6 +224,7 @@ h1, h2, h3,
     text-transform: uppercase;
     color: var(--texto-suave);
 }
+
 .stat strong {
     display: block;
     margin-top: 6px;
@@ -186,9 +232,18 @@ h1, h2, h3,
     font-weight: 800;
     color: var(--blanco);
 }
-.stat-ok { border-top-color: var(--verde); }
-.stat-no { border-top-color: var(--rojo); }
-.stat-na { border-top-color: var(--acento); }
+
+.stat-ok {
+    border-top-color: var(--verde);
+}
+
+.stat-no {
+    border-top-color: var(--rojo);
+}
+
+.stat-na {
+    border-top-color: var(--acento);
+}
 
 /* ----- Ficha del estudiante (plantillas/ficha.html) ----- */
 .ficha {
@@ -198,21 +253,25 @@ h1, h2, h3,
     padding: 26px 30px;
     margin: 10px 0 18px 0;
 }
+
 .ficha-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 16px;
 }
+
 .ficha-nombre {
     font-size: 1.7rem;
     font-weight: 800;
     color: var(--blanco);
 }
+
 .ficha-carrera {
     margin-top: 4px;
     color: #cfdcf5;
 }
+
 .ficha-datos {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -221,6 +280,7 @@ h1, h2, h3,
     padding-top: 18px;
     border-top: 1px solid rgba(255, 255, 255, 0.25);
 }
+
 .ficha-datos span {
     display: block;
     font-size: 0.7rem;
@@ -228,12 +288,14 @@ h1, h2, h3,
     text-transform: uppercase;
     color: #b9cbee;
 }
+
 .ficha-datos strong {
     display: block;
     margin-top: 4px;
     color: var(--blanco);
     word-break: break-all;
 }
+
 .ficha-motivo {
     margin-top: 20px;
     padding: 12px 16px;
@@ -242,9 +304,21 @@ h1, h2, h3,
     background: rgba(255, 255, 255, 0.08);
     color: var(--blanco);
 }
-.motivo-ok { border-left-color: var(--verde); background: rgba(62, 207, 142, 0.14); }
-.motivo-no { border-left-color: var(--rojo);  background: rgba(255, 107, 120, 0.14); }
-.motivo-na { border-left-color: var(--acento); background: rgba(91, 155, 255, 0.16); }
+
+.motivo-ok {
+    border-left-color: var(--verde);
+    background: rgba(62, 207, 142, 0.14);
+}
+
+.motivo-no {
+    border-left-color: var(--rojo);
+    background: rgba(255, 107, 120, 0.14);
+}
+
+.motivo-na {
+    border-left-color: var(--acento);
+    background: rgba(91, 155, 255, 0.16);
+}
 
 /* Etiqueta redondeada con el estado (Con beca / Sin beca / Sin registro) */
 .pill {
@@ -255,13 +329,41 @@ h1, h2, h3,
     white-space: nowrap;
     border: 1px solid;
 }
-.pill-ok { color: var(--verde); border-color: var(--verde); background: rgba(62, 207, 142, 0.14); }
-.pill-no { color: var(--rojo);  border-color: var(--rojo);  background: rgba(255, 107, 120, 0.14); }
-.pill-na { color: #cfe0ff; border-color: var(--acento); background: rgba(91, 155, 255, 0.18); }
+
+.pill-ok {
+    color: var(--verde);
+    border-color: var(--verde);
+    background: rgba(62, 207, 142, 0.14);
+}
+
+.pill-no {
+    color: var(--rojo);
+    border-color: var(--rojo);
+    background: rgba(255, 107, 120, 0.14);
+}
+
+.pill-na {
+    color: #cfe0ff;
+    border-color: var(--acento);
+    background: rgba(91, 155, 255, 0.18);
+}
 
 /* En pantallas angostas (celular) el banner y la ficha se apilan */
 @media (max-width: 700px) {
-    .banner { flex-direction: column; text-align: center; }
-    .banner-texto { border-left: none; padding-left: 0; }
-    .ficha-datos { grid-template-columns: 1fr; }
+    .banner {
+        flex-direction: column;
+        text-align: center;
+        
+    }
+    .logo-uni {
+        display: none;
+    }
+    .banner-texto {
+        border-left: none;
+        padding-left: 0;
+    }
+
+    .ficha-datos {
+        grid-template-columns: 1fr;
+    }
 }
