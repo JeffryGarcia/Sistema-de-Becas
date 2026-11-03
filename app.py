@@ -1,8 +1,37 @@
-import streamlit as st
+# =============================================================================
+# app.py -> Archivo PRINCIPAL del Sistema de Becas (la interfaz que se ve)
+# Para correrlo:   streamlit run app.py
+#
+# Cómo está organizado el proyecto:
+#   app.py                    -> LÓGICA de la interfaz (Python)
+#   style.css                 -> ESTILOS (colores, bordes, sombras)
+#   plantillas/banner.html    -> ESTRUCTURA del banner de Inicio (HTML)
+#   plantillas/ficha.html     -> ESTRUCTURA de la ficha del estudiante (HTML)
+#   .streamlit/config.toml    -> TEMA general de colores de Streamlit
+#   assets/logo_claro.png     -> NUEVO: logo de SG UNI para el fondo oscuro
+# =============================================================================
+# Marcas de los comentarios:
+#   # NUEVO:  -> algo que se agregó en esta versión
+#   # CAMBIO: -> algo que ya existía y se modificó
+# =============================================================================
 
-# 1. Configuración de la página (debe ser el PRIMER comando de Streamlit)
+import base64   # NUEVO: Importación para codificar el logotipo en formato base64 e incrustarlo dentro del banner HTML
+from pathlib import Path
+
+import streamlit as st
+import pandas as pd
+from archivos import cargar_datos, guardar_datos
+from estudiantes import modulo_estudiantes, ESTUDIANTES_INICIALES
+from academico import modulo_academico, PROMEDIO, REPROBADO
+# Se importan también estado_beca y CLASES para reutilizar la misma regla de validación y los mismos colores en el inicio
+from consulta_becas import modulo_consulta_becas, estado_beca, CLASES
+
+# Definición de la ruta base del directorio actual donde reside app.py (facilita la ubicación de recursos relativos)
+CARPETA = Path(__file__).parent
+
+# 1. Configuración de la página (REQUISITO: Debe ser estrictamente el PRIMER comando de Streamlit ejecutado en el script)
 st.set_page_config(
-    page_title="Sistema de Becas UNI",
+    page_title="SG UNI - Sistema de Becas",   # CAMBIO: Actualizado con el nombre oficial de la marca
     page_icon="🎓",
     layout="wide",
 )
