@@ -1,12 +1,39 @@
 # =============================================================================
-# .streamlit/config.toml -> TEMA general de colores de Streamlit (azul UNI y blanco)
-# Streamlit lo lee solo al arrancar. Si lo cambias, reinicia la app.
+# .streamlit/config.toml -> TEMA de Streamlit: SIEMPRE claro (paleta verde oscuro)
+# Streamlit lee este archivo al arrancar. Si lo cambias, reinicia la app.
+# Las tablas (st.dataframe) y las barras de progreso toman sus colores de aquí,
+# no del CSS. Si cambias la paleta en style.css, cambia también estos colores.
+#
+# IMPORTANTE: la carpeta .streamlit debe estar en la misma carpeta desde donde
+# corres "streamlit run app.py" (junto a app.py).
+#
+# Por qué se repite el tema: el menú de Streamlit ofrece System / Light / Dark.
+# "System" y "Dark" usan la tabla [theme.dark]; si trae los mismos colores
+# claros que [theme.light], el sistema se ve igual sin importar el modo del
+# computador de quien lo abra.
 # =============================================================================
 
 [theme]
-base = "dark"
-primaryColor = "#5B9BFF"             # azul claro: barras de progreso, selección, enlaces
-backgroundColor = "#020F2A"          # fondo general (azul muy oscuro)
-secondaryBackgroundColor = "#0A1F4D" # fondo de campos, tablas y tarjetas
-textColor = "#FFFFFF"                # texto blanco
+base = "light"
 font = "sans serif"
+# Respaldo: estos colores aplican si alguna de las tablas de abajo no se lee
+primaryColor = "#0F6A4D"
+backgroundColor = "#FBFDFC"
+secondaryBackgroundColor = "#EDF5F0"
+textColor = "#12281F"
+
+# ---------- Modo claro ----------
+[theme.light]
+primaryColor = "#0F6A4D"             # = --acento de style.css: barras de progreso, selección
+backgroundColor = "#FBFDFC"          # = --tarjeta: fondo de las tablas
+secondaryBackgroundColor = "#EDF5F0" # = --superficie: encabezado de las tablas
+textColor = "#12281F"                # = --texto
+baseRadius = "large"                 # esquinas redondeadas en tablas y widgets
+
+# ---------- Modo oscuro: mismos colores claros, para forzar el estilo ----------
+[theme.dark]
+primaryColor = "#0F6A4D"
+backgroundColor = "#FBFDFC"
+secondaryBackgroundColor = "#EDF5F0"
+textColor = "#12281F"
+baseRadius = "large"

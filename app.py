@@ -4,18 +4,18 @@
 #
 # Cómo está organizado el proyecto:
 #   app.py                    -> LÓGICA de la interfaz (Python)
-#   style.css                 -> ESTILOS (colores, bordes, sombras)
+#   style.css                 -> ESTILOS (colores, bordes, sombras, animaciones)
 #   plantillas/banner.html    -> ESTRUCTURA del banner de Inicio (HTML)
 #   plantillas/ficha.html     -> ESTRUCTURA de la ficha del estudiante (HTML)
 #   .streamlit/config.toml    -> TEMA general de colores de Streamlit
-#   assets/logo_claro.png     -> NUEVO: logo de SG UNI para el fondo oscuro
+#   assets/logo_uni.png       -> logo de la UNI (blanco, con fondo transparente) para la barra superior
 # =============================================================================
 # Marcas de los comentarios:
 #   # NUEVO:  -> algo que se agregó en esta versión
 #   # CAMBIO: -> algo que ya existía y se modificó
 # =============================================================================
 
-import base64   # NUEVO: Importación para codificar el logotipo en formato base64 e incrustarlo dentro del banner HTML
+import base64   # Importación para codificar el logotipo en formato base64 e incrustarlo como variable CSS
 from pathlib import Path
 
 import streamlit as st
@@ -29,9 +29,15 @@ from consulta_becas import modulo_consulta_becas, estado_beca, CLASES
 # Definición de la ruta base del directorio actual donde reside app.py (facilita la ubicación de recursos relativos)
 CARPETA = Path(__file__).parent
 
+# NUEVO: Color de las barras de la gráfica de Inicio. Debe coincidir con --acento de style.css.
+COLOR_GRAFICA = "#25525c"
+
+# NUEVO: Cuántos estudiantes se muestran en el ranking de Inicio.
+TOP_RANKING = 5
+
 # 1. Configuración de la página (REQUISITO: Debe ser estrictamente el PRIMER comando de Streamlit ejecutado en el script)
 st.set_page_config(
-    page_title="SG UNI - Sistema de Becas",   # CAMBIO: Actualizado con el nombre oficial de la marca
+    page_title="SG UNI - Sistema de Becas",
     page_icon="🎓",
     layout="wide",
 )
@@ -41,16 +47,13 @@ st.set_page_config(
 css = (CARPETA / "style.css").read_text(encoding="utf-8")
 st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
-# NUEVO: Configuración del logotipo institucional. st.logo lo posiciona en la esquina superior izquierda de la barra de navegación lateral/superior.
-#        Adicionalmente, se lee su contenido binario y se convierte a Base64 para permitir su renderizado embebido dentro del banner HTML de bienvenida.
-LOGO = CARPETA / "assets" / "logo_claro.png"
-st.logo(str(LOGO), size="large")
-LOGO_B64 = base64.b64encode(LOGO.read_bytes()).decode()
-# NUEVO: Logo de la UNI, fijo en la esquina derecha de la barra superior
+# Logo de la UNI dentro de la barra de navegación (a la derecha, antes del menú de tres puntos).
+# Aquí solo se entrega la imagen como variable CSS (--logo-uni); style.css la dibuja dentro del header
+# con stHeader::after, así no depende de dónde esté el elemento en la página.
 LOGO_UNI = CARPETA / "assets" / "logo_uni.png"
 LOGO_UNI_B64 = base64.b64encode(LOGO_UNI.read_bytes()).decode()
 st.markdown(
-    f'<img class="logo-uni" src="data:image/png;base64,{LOGO_UNI_B64}" alt="Universidad Nacional de Ingeniería">',
+    f'<style>:root {{ --logo-uni: url("data:image/png;base64,{LOGO_UNI_B64}"); }}</style>',
     unsafe_allow_html=True,
 )
 
@@ -68,6 +71,19 @@ if "datos" not in st.session_state:
 # Instanciación de referencia corta al diccionario central de datos almacenado en la sesión
 datos = st.session_state.datos
 
+# NUEVO: Mensaje emergente de bienvenida, una sola vez por sesión
+if "bienvenida" not in st.session_state:
+    st.session_state.bienvenida = True
+    st.toast("Bienvenido al Sistema de Becas SG UNI", icon="👋")
+
+
+# NUEVO: Tarjeta de número con animación de conteo (0 -> valor). El estilo está en style.css (.kpi y .cuenta).
+def tarjeta_numero(etiqueta, valor):
+    return (
+        f'<div class="kpi"><span>{etiqueta}</span>'
+        f'<strong class="cuenta" style="--valor:{valor}"></strong></div>'
+    )
+
 
 # 4. Definición de funciones contenedoras para el contenido de cada página de la aplicación.
 # CAMBIO: Anteriormente la lógica se evaluaba mediante un bloque condicional 'if pagina == "Inicio": ... elif ...'.
@@ -79,7 +95,6 @@ def pagina_inicio():
         banner.format(
             titulo="Sistema de Gestión y Seguimiento de Becas",
             subtitulo="Administra estudiantes, registra su rendimiento académico y consulta el estado de las becas.",
-            logo=LOGO_B64,   # NUEVO: Inyecta la imagen codificada del logotipo dentro del diseño del banner
         ),
         unsafe_allow_html=True,
     )
@@ -100,13 +115,23 @@ def pagina_inicio():
             if ultimo["Promedio"] >= PROMEDIO and ultimo["Reprobados"] == REPROBADO:
                 con_beca += 1
 
-    # --- Despliegue visual de tarjetas de métricas numéricas organizadas en 3 columnas ---
+    # --- Despliegue visual de tarjetas de números organizadas en 3 columnas ---
+    # CAMBIO: Antes eran st.metric; ahora son tarjetas HTML cuyos números cuentan desde 0 al abrir la página.
     col1, col2, col3 = st.columns(3)
-    col1.metric("Estudiantes registrados", total_estudiantes)
-    col2.metric("Semestres registrados", total_semestres)
-    col3.metric("Cumplen requisitos de beca", con_beca)
+    col1.markdown(tarjeta_numero("Estudiantes registrados", total_estudiantes), unsafe_allow_html=True)
+    col2.markdown(tarjeta_numero("Semestres registrados", total_semestres), unsafe_allow_html=True)
+    col3.markdown(tarjeta_numero("Cumplen requisitos de beca", con_beca), unsafe_allow_html=True)
 
     st.write("")  # Espaciador visual vertical en blanco
+
+    # NUEVO: Accesos rápidos. Botones grandes que llevan directo a cada página del sistema.
+    #        PAGINAS se define más abajo, pero esta función se ejecuta después, cuando ya existe.
+    acceso1, acceso2, acceso3 = st.columns(3)
+    acceso1.page_link(PAGINAS[1], label="Agregar estudiante", icon=":material/person_add:")
+    acceso2.page_link(PAGINAS[2], label="Registrar semestre", icon=":material/edit_note:")
+    acceso3.page_link(PAGINAS[3], label="Consultar becas", icon=":material/search:")
+
+    st.write("")
 
     # Agrupación y clasificación del estado de beca de cada estudiante para el resumen general y el ranking de mejores promedios.
     # Emplea la función estado_beca() importada de consulta_becas.py para asegurar consistencia idéntica en toda la app.
@@ -132,8 +157,10 @@ def pagina_inicio():
         st.subheader("Estado de las becas")
         tarjetas = st.columns(3)
         for columna, estado in zip(tarjetas, conteo):
+            # CAMBIO: El número usa la clase "cuenta" para animarse de 0 al valor final
             columna.markdown(
-                f'<div class="stat stat-{CLASES[estado]}"><span>{estado}</span><strong>{conteo[estado]}</strong></div>',
+                f'<div class="stat stat-{CLASES[estado]}"><span>{estado}</span>'
+                f'<strong class="cuenta" style="--valor:{conteo[estado]}"></strong></div>',
                 unsafe_allow_html=True,
             )
 
@@ -149,22 +176,51 @@ def pagina_inicio():
         else:
             st.caption("Aún no hay semestres registrados para evaluar las becas.")
 
-    # Columna derecha -> Tabla de clasificación (ranking) mostrando los 5 mejores últimos promedios académicos obtenidos
+    # Columna derecha -> Ranking de los mejores últimos promedios, con filtro por estado y vista de tabla o gráfica
     with derecha:
         st.subheader("Mejores promedios")
         if ranking:
+            # NUEVO: Filtro interactivo por estado de beca. Si el usuario desmarca la opción, se muestran todos.
+            filtro = st.segmented_control(
+                "Filtrar por estado",
+                ["Todos", "Con beca", "Sin beca"],
+                default="Todos",
+                key="filtro_ranking",
+                label_visibility="collapsed",
+            ) or "Todos"
+            filas = [f for f in ranking if filtro == "Todos" or f["Estado"] == filtro]
+
             # Ordena la lista de diccionarios de mayor a menor basándose en la clave "Último promedio"
-            ranking.sort(key=lambda fila: fila["Último promedio"], reverse=True)
-            st.dataframe(
-                pd.DataFrame(ranking[:5]),
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "Último promedio": st.column_config.ProgressColumn(
-                        "Último promedio", min_value=0, max_value=100, format="%.1f"
-                    ),
-                },
-            )
+            filas.sort(key=lambda fila: fila["Último promedio"], reverse=True)
+            filas = filas[:TOP_RANKING]
+
+            # NUEVO: Dos vistas del mismo ranking: tabla y gráfica de barras
+            pestana_tabla, pestana_grafica = st.tabs(["Tabla", "Gráfica"])
+            with pestana_tabla:
+                if filas:
+                    st.dataframe(
+                        pd.DataFrame(filas),
+                        width="stretch",
+                        hide_index=True,
+                        column_config={
+                            "Último promedio": st.column_config.ProgressColumn(
+                                "Último promedio", min_value=0, max_value=100, format="%.1f"
+                            ),
+                        },
+                    )
+                else:
+                    st.info("Ningún estudiante tiene ese estado.")
+            with pestana_grafica:
+                if filas:
+                    st.bar_chart(
+                        pd.DataFrame(filas),
+                        x="Estudiante",
+                        y="Último promedio",
+                        color=COLOR_GRAFICA,
+                        height=250,
+                    )
+                else:
+                    st.info("Ningún estudiante tiene ese estado.")
         else:
             st.info("Registra semestres en Académico para ver el ranking.")
 
@@ -204,8 +260,8 @@ PAGINAS = [
     st.Page(pagina_consulta, title="Consulta de becas", icon=":material/workspace_premium:"),
 ]
 
-# CAMBIO: Se eliminó por completo la barra lateral (st.sidebar.title, st.sidebar.radio, separadores e información de soporte).
-#         Toda la navegación principal se ubica ahora en la parte superior y el logotipo institucional se gestiona mediante st.logo.
+# CAMBIO: Se eliminó por completo la barra lateral. Toda la navegación principal va en la parte superior
+#         (position="top"), dentro de la barra redondeada que dibuja style.css.
 pagina = st.navigation(PAGINAS, position="top")
 
 # 6. Ejecución y renderizado dinámico de la página seleccionada por el usuario en la barra superior.
