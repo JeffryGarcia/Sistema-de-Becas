@@ -8,34 +8,30 @@
 #   # CAMBIO: -> algo que ya existía y se modificó
 # =============================================================================
 
-import re   # NUEVO: Importación del módulo de expresiones regulares para validar nombre, carnet, carrera y correo mediante patrones estrictos
+import re
 from pathlib import Path
 import streamlit as st
-from archivos import guardar_datos
-from academico import CLAVE_ADMIN   # Importación de la clave administrativa compartida desde el módulo Académico
+from archivos import guardar_o_detener
+from academico import CLAVE_ADMIN
+from carreras import CARRERAS, canonica   # NUEVO: catálogo oficial de carreras
 
-# NUEVO: Centralización de las reglas de validación en constantes globales para facilitar su mantenimiento y modificación
-EDAD_MIN = 16     # Edad mínima permitida para ser considerado estudiante universitario
-EDAD_MAX = 60     # Edad máxima aceptada dentro del sistema
-# Patrón Regex para textos: Palabras formadas solo por letras (incluyendo tildes y ñ), separadas por espacio, guion o apóstrofe.
-# Ejemplo válido: "María López", "Ingenieria en sistemas". No acepta números ni símbolos especiales.
+# Reglas de validación centralizadas
+EDAD_MIN = 16
+EDAD_MAX = 60
+# NUEVO: Límites de longitud para evitar textos absurdamente largos
+NOMBRE_MIN = 2
+NOMBRE_MAX = 60
+CORREO_MAX = 100
+
+# Palabras formadas solo por letras (con tildes y ñ), separadas por UN espacio, guion o apóstrofe.
 PATRON_TEXTO = r"[^\W\d_]+(?:[ '\-][^\W\d_]+)*"
-# Patrón Regex para carnet: Exclusivamente números, con una longitud de 6 o 7 dígitos, prohibiendo que comience con el dígito 0.
+# Carnet: solo números, 6 o 7 dígitos, sin empezar en 0.
 PATRON_CARNET = r"[1-9]\d{5,6}"
-# Patrón Regex para correo: Estructura estándar texto@dominio.extension, sin espacios intermedios.
-PATRON_CORREO = r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}"
+# CAMBIO: Correo más estricto: usuario con caracteres válidos, dominio con puntos y extensión de 2+ letras.
+PATRON_CORREO = r"[A-Za-z0-9._%+\-]+@(?:[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}"
 
-# Obtiene la ruta base del directorio actual de app.py utilizando pathlib
-BASE_DIR = Path(__file__).parent
-LOGO = BASE_DIR / "assets" / "logo_claro.png"
 
-# Verificación rápida opcional para depuración de la existencia del archivo de logotipo
-if not LOGO.exists():
-    st.error(f"No se encontró el logotipo en la ruta: {LOGO}")
-else:
-    st.logo(str(LOGO), size="large")
 
-# Diccionario con estudiantes iniciales de ejemplo (utilizado únicamente la primera vez que se inicializa el sistema)
 ESTUDIANTES_INICIALES = {
     "5647097": {"Nombre": "Luis", "Edad": 18, "carnet": 5647097,
                  "carrera": "Ingenieria electronica", "correo": "luis@example.com"},
@@ -50,109 +46,124 @@ ESTUDIANTES_INICIALES = {
 }
 
 
-# Función de negocio: Agrega un estudiante al diccionario principal. Retorna True si se añade exitosamente, o False en caso contrario.
+# NUEVO: ÚNICA fuente de reglas de validación. La usan tanto la interfaz (en vivo) como agregar_estudiante
+#        (respaldo), así nunca pueden quedar desincronizadas. Devuelve una lista de errores (vacía si todo está bien).
+def validar_estudiante(datos, nombre, edad, carnet_texto, carrera, correo):
+    errores = []
+    nombre = (nombre or "").strip()
+    carnet_texto = (carnet_texto or "").strip()
+    carrera = (carrera or "").strip()
+    correo = (correo or "").strip()
+
+    # --- Nombre ---
+    if not nombre:
+        errores.append("Nombre")
+    elif len(nombre) < NOMBRE_MIN or not re.fullmatch(PATRON_TEXTO, nombre):
+        errores.append(f"Nombre (solo letras, mínimo {NOMBRE_MIN}; un solo espacio entre palabras)")
+    elif len(nombre) > NOMBRE_MAX:
+        errores.append(f"Nombre (máximo {NOMBRE_MAX} caracteres)")
+
+    # --- Carnet ---
+    if not carnet_texto:
+        errores.append("Carnet")
+    elif not re.fullmatch(PATRON_CARNET, carnet_texto):
+        errores.append("Carnet (solo números, de 6 o 7 dígitos y sin empezar en 0)")
+    elif carnet_texto in datos["estudiantes"]:
+        errores.append(f"Carnet (ya existe un estudiante con el carnet {carnet_texto})")
+
+    # --- Edad ---
+    if edad is None:
+        errores.append("Edad")
+    elif edad != int(edad):
+        errores.append("Edad (debe ser un número entero)")
+    elif not EDAD_MIN <= edad <= EDAD_MAX:
+        errores.append(f"Edad (debe estar entre {EDAD_MIN} y {EDAD_MAX} años)")
+
+    # --- Carrera --- (CAMBIO: ahora debe ser una carrera del catálogo oficial)
+    if not carrera:
+        errores.append("Carrera")
+    elif canonica(carrera) is None:
+        errores.append("Carrera (elige una de la lista)")
+
+    # --- Correo ---
+    if not correo:
+        errores.append("Correo")
+    elif len(correo) > CORREO_MAX:
+        errores.append(f"Correo (máximo {CORREO_MAX} caracteres)")
+    elif (not re.fullmatch(PATRON_CORREO, correo) or ".." in correo
+          or correo.split("@")[0].startswith(".") or correo.split("@")[0].endswith(".")):
+        errores.append("Correo (formato ejemplo@correo.com)")
+    else:
+        # NUEVO: no se permite que dos estudiantes compartan el mismo correo
+        for est in datos["estudiantes"].values():
+            if str(est.get("correo", "")).strip().lower() == correo.lower():
+                errores.append("Correo (ya lo usa otro estudiante)")
+                break
+
+    return errores
+
+
+# Agrega un estudiante al diccionario principal. Retorna True si se añade, False si no.
+# CAMBIO: antes solo verificaba campos vacíos/cero; ahora re-valida todo con validar_estudiante().
 def agregar_estudiante(datos, nombre, edad, carnet, carrera, correo):
-    # Condición de guarda: Si algún campo está vacío o en cero, emite una alerta y frena el registro
-    if nombre == "" or edad == 0 or carnet == 0 or carrera == "" or correo == "":
-        st.error("Por favor, complete todos los campos.")
+    errores = validar_estudiante(datos, nombre, edad, str(carnet), carrera, correo)
+    if errores:
+        st.error("No se pudo registrar: " + ", ".join(errores) + ".")
         return False
 
-    # Almacena el perfil del estudiante empleando su número de carnet transformado en cadena (texto) como clave única del diccionario
     datos["estudiantes"][str(int(carnet))] = {
-        "Nombre": nombre,
+        "Nombre": nombre.strip(),
         "Edad": int(edad),
         "carnet": int(carnet),
-        "carrera": carrera,
-        "correo": correo,
+        "carrera": canonica(carrera),   # CAMBIO: siempre se guarda el nombre oficial de la carrera
+        "correo": correo.strip().lower(),   # CAMBIO: el correo se guarda en minúsculas
     }
     return True
 
 
-# Función principal que renderiza el módulo "Estudiantes" dentro de la interfaz web de Streamlit
 def modulo_estudiantes(datos):
     st.title("Estudiantes")
 
-    # Muestra un mensaje temporal de éxito persistido en session_state tras agregar o eliminar registros
     if "est_mensaje" in st.session_state:
         st.success(st.session_state.pop("est_mensaje"))
 
-    # Estructura la vista en dos pestañas (tabs): una para visualizar la lista general y otra para el formulario de registro
     tab_lista, tab_agregar = st.tabs(["Lista de estudiantes", "Agregar estudiante"])
 
-    # Se procesa primero la pestaña de adición y luego la lista para garantizar que la tabla refleje los datos actualizados al instante
     with tab_agregar:
         st.subheader("Agregar nuevo estudiante")
         st.caption("Completa todos los campos y presiona el botón para registrarlo.")
 
-        # CAMBIO: Se eliminó el uso de st.form. Dentro de los formularios nativos de Streamlit no se validaba en vivo
-        #         hasta pulsar el botón de envío, impidiendo deshabilitarlo. Ahora se valida dinámicamente campo por campo.
-        # NUEVO: Control de versión (est_add_v) para limpiar los campos del formulario tras agregar un estudiante con éxito
         va = st.session_state.setdefault("est_add_v", 0)
 
-        # Fila 1: Campos de Nombre y Carnet distribuidos en dos columnas paralelas
         col1, col2 = st.columns(2)
-        nombre = col1.text_input("Nombre", placeholder="Ej: María López", key=f"est_nombre_{va}")
-        # CAMBIO: El campo de carnet migró de number_input a text_input para permitir la validación directa de su formato estructurado
-        carnet_texto = col2.text_input("Carnet", placeholder="Ej: 1234567", key=f"est_carnet_{va}")
+        # CAMBIO: max_chars en los campos de texto para impedir entradas excesivas
+        nombre = col1.text_input("Nombre", placeholder="Ej: María López",
+                                 max_chars=NOMBRE_MAX, key=f"est_nombre_{va}")
+        carnet_texto = col2.text_input("Carnet", placeholder="Ej: 1234567",
+                                       max_chars=7, key=f"est_carnet_{va}")
 
-        # Fila 2: Campos de Edad y Carrera distribuidos en dos columnas paralelas
         col3, col4 = st.columns(2)
-        # CAMBIO: Se define value=None para mantener la casilla inicialmente vacía en lugar de precargar un cero predeterminado
-        edad = col3.number_input("Edad", min_value=0, max_value=120, step=1, value=None,
-                                   key=f"est_edad_{va}")
-        carrera = col4.text_input("Carrera", placeholder="Ej: Ingenieria civil",
-                                  key=f"est_carrera_{va}")
+        # CAMBIO: los límites del widget ahora son los reales (antes 0-120, la regla se validaba aparte)
+        edad = col3.number_input("Edad", min_value=EDAD_MIN, max_value=EDAD_MAX, step=1, value=None,
+                                 key=f"est_edad_{va}")
+        # CAMBIO: la carrera se elige de la lista oficial (antes era texto libre)
+        carrera = col4.selectbox("Carrera", CARRERAS, index=None,
+                                 placeholder="Elige una carrera", key=f"est_carrera_{va}")
 
-        # Fila 3: Campo de Correo electrónico abarcando todo el ancho disponible de la pantalla
-        correo = st.text_input("Correo", placeholder="ejemplo@correo.com", key=f"est_correo_{va}")
+        correo = st.text_input("Correo", placeholder="ejemplo@correo.com",
+                               max_chars=CORREO_MAX, key=f"est_correo_{va}")
 
-        # NUEVO: Acumulador de errores dinámico para recolectar las fallas de validación en tiempo real
-        errores = []
+        # CAMBIO: toda la validación vive en validar_estudiante()
+        errores = validar_estudiante(datos, nombre, edad, carnet_texto, carrera, correo)
 
-        # Validación del campo Nombre: obligatorio, con caracteres alfabéticos válidos y longitud mínima de 2 caracteres
-        if not nombre.strip():
-            errores.append("Nombre")
-        elif len(nombre.strip()) < 2 or not re.fullmatch(PATRON_TEXTO, nombre.strip()):
-            errores.append("Nombre (solo letras y espacios, mínimo 2 letras)")
-
-        # Validación del campo Carnet: obligatorio, estrictamente numérico, de 6 o 7 dígitos, sin iniciar en 0 y no duplicado
-        if not carnet_texto.strip():
-            errores.append("Carnet")
-        elif not re.fullmatch(PATRON_CARNET, carnet_texto.strip()):
-            errores.append("Carnet (solo números, de 6 o 7 dígitos y sin empezar en 0)")
-        elif carnet_texto.strip() in datos["estudiantes"]:
-            errores.append(f"Carnet (ya existe un estudiante con el carnet {carnet_texto.strip()})")
-
-        # Validación del campo Edad: obligatorio y comprendido dentro de los límites del rango universitario establecido
-        if edad is None:
-            errores.append("Edad")
-        elif not EDAD_MIN <= edad <= EDAD_MAX:
-            errores.append(f"Edad (debe estar entre {EDAD_MIN} y {EDAD_MAX} años)")
-
-        # (Nota: La validación estricta de carrera se mantiene comentada opcionalmente en el código fuente original)
-        # if not carrera.strip():
-        #     errores.append("Carrera")
-        # elif len(carrera.strip()) < 3 or not re.fullmatch(PATRON_TEXTO, carrera.strip()):
-        #     errores.append("Carrera (solo letras y espacios, mínimo 3 letras)")
-
-        # Validación del campo Correo: obligatorio y adaptado al patrón formal de estructura de e-mail
-        if not correo.strip():
-            errores.append("Correo")
-        elif not re.fullmatch(PATRON_CORREO, correo.strip()):
-            errores.append("Correo (formato ejemplo@correo.com)")
-
-        # NUEVO: Despliegue dinámico de avisos advirtiendo los campos faltantes o con formato incorrecto
         if errores:
             st.warning("Complete o corrija estos campos: " + ", ".join(errores) + ".")
 
-        # CAMBIO: Sustitución de st.form_submit_button por un botón convencional condicionado mediante disabled=bool(errores).
-        #         De esta manera, el botón se bloquea automáticamente impidiendo registros defectuosos si hay campos inválidos.
         if st.button("Agregar estudiante", type="primary", width="stretch",
                      disabled=bool(errores)):
-            if agregar_estudiante(datos, nombre.strip(), int(edad), int(carnet_texto.strip()),
-                                  carrera.strip(), correo.strip()):
-                guardar_datos(datos)   # Persiste los cambios estructurales guardándolos directamente en becas.json
-                # NUEVO: Almacena el mensaje de confirmación, incrementa el índice de versión del formulario y recarga la app
+            if agregar_estudiante(datos, nombre, edad, int(carnet_texto.strip()),
+                                  carrera, correo):
+                guardar_o_detener(datos)
                 st.session_state["est_mensaje"] = f"Estudiante {nombre.strip()} agregado correctamente."
                 st.session_state["est_add_v"] = va + 1
                 st.rerun()
@@ -160,20 +171,17 @@ def modulo_estudiantes(datos):
     with tab_lista:
         st.subheader("Estudiantes registrados")
 
-        # Campo de búsqueda en vivo: filtra la tabla de manera reactiva conforme el usuario introduce texto (nombre o carnet)
-        buscar = st.text_input("Buscar", placeholder="Escribe un nombre o un carnet...")
+        buscar = st.text_input("Buscar", placeholder="Escribe un nombre o un carnet...",
+                               max_chars=NOMBRE_MAX).strip()   # CAMBIO: se ignoran espacios al inicio/fin
 
-        # Construcción de la lista filtrada de estudiantes según los criterios ingresados en el buscador
         lista = []
         for estudiante in datos["estudiantes"].values():
             if buscar.lower() in estudiante["Nombre"].lower() or buscar in str(estudiante["carnet"]):
                 lista.append(estudiante)
 
-        # Renderizado de la tabla de datos y pie de página informativo con métricas de conteo de registros mostrados
         st.dataframe(lista, width="stretch", hide_index=True)
         st.caption(f"Mostrando {len(lista)} de {len(datos['estudiantes'])} estudiantes")
 
-        # Panel colapsable de opciones de administrador protegido por contraseña para eliminar registros de estudiantes
         with st.expander("Opciones de administrador"):
             clave = st.text_input("Clave de administrador", type="password", key="est_clave")
 
@@ -186,10 +194,8 @@ def modulo_estudiantes(datos):
                 st.caption("Al eliminar un estudiante también se elimina todo su historial "
                            "académico. Esta acción no se puede deshacer.")
 
-                # Control de versión para limpiar la selección de elementos múltiples tras la eliminación
                 vd = st.session_state.setdefault("est_del_v", 0)
 
-                # Mapea y estructura las opciones del selector múltiple visualizando 'carnet - nombre' y asociándolas al carnet clave
                 opciones_eliminar = {}
                 for carnet_est, est in datos["estudiantes"].items():
                     opciones_eliminar[f"{carnet_est} - {est['Nombre']}"] = carnet_est
@@ -199,16 +205,13 @@ def modulo_estudiantes(datos):
                 confirmar = st.checkbox("Confirmo que quiero eliminar a los estudiantes seleccionados",
                                         key=f"est_del_conf_{vd}")
 
-                # Acción de eliminación masiva: se ejecuta solo si se seleccionan estudiantes y se marca la casilla de confirmación
                 if st.button("Eliminar estudiantes seleccionados", disabled=not (elegidos and confirmar)):
                     for etiqueta in elegidos:
                         carnet_borrar = opciones_eliminar[etiqueta]
-                        # Elimina el perfil del estudiante del diccionario principal...
                         datos["estudiantes"].pop(carnet_borrar, None)
-                        # ...y remueve también su historial académico asociado, evitando registros huérfanos en el sistema
                         datos["academico"].pop(carnet_borrar, None)
-                        
-                    guardar_datos(datos)   # Actualiza y guarda los cambios persistentes en el archivo JSON
+
+                    guardar_o_detener(datos)
                     st.session_state["est_mensaje"] = f"Se eliminaron {len(elegidos)} estudiante(s)."
                     st.session_state["est_del_v"] = vd + 1
                     st.rerun()

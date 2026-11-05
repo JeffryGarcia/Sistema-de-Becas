@@ -50,13 +50,17 @@ st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 # Logo de la UNI dentro de la barra de navegación (a la derecha, antes del menú de tres puntos).
 # Aquí solo se entrega la imagen como variable CSS (--logo-uni); style.css la dibuja dentro del header
 # con stHeader::after, así no depende de dónde esté el elemento en la página.
-LOGO_UNI = CARPETA / "assets" / "logo_uni.png"
-LOGO_UNI_B64 = base64.b64encode(LOGO_UNI.read_bytes()).decode()
+# Logo SG UNI del banner de Inicio (se incrusta en base64 dentro de banner.html)
+# Logo SG UNI del banner de Inicio (se incrusta en base64 dentro de banner.html)
+LOGO_BANNER = CARPETA / "assets" / "logo_becas.png"   # <- pon aquí el nombre real de tu archivo
+LOGO_BANNER_B64 = base64.b64encode(LOGO_BANNER.read_bytes()).decode()
+# Encabezado institucional UNI: se entrega como variable CSS (--fondo-uni) y style.css lo dibuja sobre la tarjeta
+FONDO_UNI = CARPETA / "assets" / "fondo_uni.png"
+FONDO_UNI_B64 = base64.b64encode(FONDO_UNI.read_bytes()).decode()
 st.markdown(
-    f'<style>:root {{ --logo-uni: url("data:image/png;base64,{LOGO_UNI_B64}"); }}</style>',
+    f"<style>:root {{ --fondo-uni: url('data:image/png;base64,{FONDO_UNI_B64}'); }}</style>",
     unsafe_allow_html=True,
 )
-
 # 3. Carga inicial persistente de la base de datos (becas.json) mediante archivos.py.
 #    Streamlit reejecuta todo el script ante cualquier interacción del usuario; por ello, los datos se almacenan
 #    en st.session_state para garantizar que perduren intactos entre clics y recargas de página.
@@ -89,16 +93,16 @@ def tarjeta_numero(etiqueta, valor):
 # CAMBIO: Anteriormente la lógica se evaluaba mediante un bloque condicional 'if pagina == "Inicio": ... elif ...'.
 #         Ahora cada sección está encapsulada en su propia función modular para integrarse limpiamente con st.navigation().
 def pagina_inicio():
-    # Banner de bienvenida principal: lee la plantilla HTML y realiza un formateo de huecos (placeholders) mediante .format()
     banner = (CARPETA / "plantillas" / "banner.html").read_text(encoding="utf-8")
     st.markdown(
         banner.format(
+            logo=LOGO_BANNER_B64,
             titulo="Sistema de Gestión y Seguimiento de Becas",
             subtitulo="Administra estudiantes, registra su rendimiento académico y consulta el estado de las becas.",
+            
         ),
         unsafe_allow_html=True,
     )
-
     # --- Cálculo de métricas y contadores para el resumen general ---
     total_estudiantes = len(datos["estudiantes"])
 

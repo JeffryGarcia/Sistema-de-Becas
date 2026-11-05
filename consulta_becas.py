@@ -9,232 +9,338 @@
 #   Un estudiante TIENE beca si en su ÚLTIMO semestre registrado
 #   su promedio es >= PROMEDIO y sus reprobadas son <= REPROBADO.
 #
-# La estructura de la ficha está en plantillas/ficha.html y los colores en style.css
+# Marcas de los comentarios:
+#   # NUEVO:  -> algo que se agregó en esta versión
+#   # CAMBIO: -> algo que ya existía y se modificó
 # =============================================================================
 
-# Importación del módulo nativo html de Python para escapar/sanitizar texto HTML
 import html
-# Importación del módulo Path para manejo de rutas de archivos dentro del sistema
 from pathlib import Path
 
-# Importación de la librería Streamlit para la interfaz de usuario web
 import streamlit as st
-# Importación de Pandas para manipulación y renderizado de tablas estructuradas (DataFrames)
 import pandas as pd
 
-# Importación de las constantes de corte y la función para generar la tabla académica formateada desde el módulo 'academico'
-from academico import PROMEDIO, REPROBADO, tabla_historial
-# Importación de la función que compila el informe del estudiante a formato binario PDF desde el módulo 'reporte_pdf'
+# CAMBIO: se importa también clave_semestre para ordenar cronológicamente
+from academico import PROMEDIO, REPROBADO, tabla_historial, clave_semestre
 from reporte_pdf import generar_pdf
+from carreras import CARRERAS, canonica   # NUEVO: catálogo oficial de carreras
 
-# Definición de la ruta de la carpeta padre actual donde reside este archivo fuente (consulta_becas.py)
 CARPETA = Path(__file__).parent
 
-# Diccionario de mapeo que asocia el estado textual de la beca con la clase CSS correspondiente definida en style.css
 CLASES = {"Con beca": "ok", "Sin beca": "no", "Sin registro": "na"}
 
+CAMPOS_SEMESTRE = ("Semestre", "Promedio", "Reprobados")
 
-# Función de evaluación lógica: analiza el historial académico del estudiante e identifica si califica a la beca según el último período
+OTRA = "Otra / sin clasificar"   # NUEVO: para carreras escritas a mano que no están en el catálogo
+
+
+# NUEVO: nombre oficial de la carrera de un estudiante (o OTRA si no coincide con el catálogo)
+def carrera_oficial(estudiante):
+    return canonica(estudiante.get("carrera", "")) or OTRA
+
+
+# NUEVO: Convierte a número de forma segura. Devuelve None si no es un número válido (texto, vacío, NaN, bool).
+def _numero(valor):
+    if isinstance(valor, bool):
+        return None
+    try:
+        n = float(valor)
+    except (TypeError, ValueError):
+        return None
+    return n if n == n else None   # n != n solo ocurre con NaN
+
+
+# NUEVO: Devuelve el historial limpio y ORDENADO cronológicamente.
+#        Descarta registros dañados (sin Semestre/Promedio/Reprobados o con valores no numéricos).
+#        Así el "último semestre" es siempre el más reciente, aunque el JSON se haya editado a mano.
+def historial_limpio(historial):
+    validos = []
+    for r in historial or []:
+        if not isinstance(r, dict) or any(c not in r for c in CAMPOS_SEMESTRE):
+            continue
+        if _numero(r["Promedio"]) is None or _numero(r["Reprobados"]) is None:
+            continue
+        validos.append(r)
+    return sorted(validos, key=clave_semestre)
+
+
+# NUEVO: Último semestre (el más reciente) o None si no hay ninguno utilizable.
+#        app.py debería usar esta función en lugar de historial[-1].
+def ultimo_semestre(historial):
+    limpio = historial_limpio(historial)
+    return limpio[-1] if limpio else None
+
+
 def estado_beca(historial):
-    # Verificación de guarda: Si la lista del historial está vacía o es evaluada como Falsa, no hay registros previos
-    if not historial:
+    # CAMBIO: antes usaba historial[-1] directamente (podía fallar o tomar un semestre que no es el último)
+    ultimo = ultimo_semestre(historial)
+    if ultimo is None:
+        if historial:
+            return "Sin registro", "Los semestres registrados tienen datos incompletos o dañados."
         return "Sin registro", "Aún no tiene semestres registrados."
 
-    # Obtención del último elemento (último semestre cursado registrado) utilizando indexación negativa [-1]
-    ultimo = historial[-1]
+    promedio = _numero(ultimo["Promedio"])
+    reprobados = int(_numero(ultimo["Reprobados"]))
 
-    # Inicialización de una lista temporal para almacenar las razones por las cuales el estudiante reprobaría la solicitud
     motivos = []
-    
-    # Evaluación 1: Compara el promedio del último semestre contra el promedio mínimo estipulado (PROMEDIO)
-    if ultimo["Promedio"] < PROMEDIO:
-        motivos.append(f"su promedio ({ultimo['Promedio']}) es menor a {PROMEDIO}")
-        
-    # Evaluación 2: Compara la cantidad de materias reprobadas del último semestre contra el máximo permitido (REPROBADO)
-    if ultimo["Reprobados"] > REPROBADO:
-        motivos.append(f"tiene {ultimo['Reprobados']} asignatura(s) reprobada(s) (máximo {REPROBADO})")
+    if promedio < PROMEDIO:
+        motivos.append(f"su promedio ({promedio:g}) es menor a {PROMEDIO}")
+    if reprobados > REPROBADO:
+        motivos.append(f"tiene {reprobados} asignatura(s) reprobada(s) (máximo {REPROBADO})")
 
-    # Toma de decisión: Si la lista 'motivos' contiene elementos, se unen con ' y ' para estructurar la explicación de denegación
     if motivos:
         return "Sin beca", "No cumple porque " + " y ".join(motivos) + "."
-    
-    # Si la lista 'motivos' está vacía, cumple con todos los criterios exigidos
+
     return "Con beca", "Cumple los requisitos en su último semestre."
 
 
-# Función principal de renderizado del módulo de UI dentro de Streamlit
+# NUEVO: cuenta cuántos estudiantes de un grupo tienen cierto estado de beca
+def contar(grupo, estado):
+    return sum(1 for f in grupo if f["Estado"] == estado)
+
+
 def modulo_consulta_becas(datos):
-    # Despliega el título principal de la sección en la pantalla de Streamlit
     st.title("Consulta de becas")
 
-    # Condición de guarda: Si el diccionario de estudiantes está vacío, desglosa un mensaje informativo y finaliza la ejecución de la función
     if not datos["estudiantes"]:
         st.info("No hay estudiantes registrados.")
         return
 
-    # Construcción de la matriz/lista de diccionarios con la información procesada de cada estudiante para las vistas generales
     filas = []
     for carnet, estudiante in datos["estudiantes"].items():
-        # Obtiene la lista de semestres del estudiante o una lista vacía si no existe en el diccionario 'academico'
-        historial = datos["academico"].get(carnet, [])
-        # Calcula el estado y el motivo invocado mediante la función estado_beca()
+        historial = historial_limpio(datos["academico"].get(carnet, []))
         estado, motivo = estado_beca(historial)
-        # Agrega la fila estructurada con las claves esperadas para el DataFrame
+        ultimo = ultimo_semestre(historial)
         filas.append({
-            "Carnet": estudiante["carnet"],
-            "Nombre": estudiante["Nombre"],
-            "Carrera": estudiante["carrera"],
+            # CAMBIO: .get() con valores por defecto, para no caer con un registro incompleto
+            "Carnet": estudiante.get("carnet", carnet),
+            "Nombre": estudiante.get("Nombre", "—"),
+            "Edad": estudiante.get("Edad", "—"),                                    # NUEVO
+            "Carrera": carrera_oficial(estudiante),                                 # CAMBIO: nombre oficial
             "Semestres": len(historial),
-            # Extrae el promedio del último registro si existe historial; en caso contrario asigna None
-            "Último promedio": historial[-1]["Promedio"] if historial else None,
+            "Último semestre": ultimo["Semestre"] if ultimo else None,              # NUEVO
+            "Último promedio": _numero(ultimo["Promedio"]) if ultimo else None,
+            "Reprobados": int(_numero(ultimo["Reprobados"])) if ultimo else None,   # NUEVO
             "Estado": estado,
         })
 
-    # Crea dos pestañas (tabs) en la interfaz gráfica para dividir la vista masiva de la vista detallada
-    tab_resumen, tab_individual = st.tabs(["Resumen general", "Consulta individual"])
+    # CAMBIO: ahora son 3 pestañas (se crean UNA sola vez, fuera del bucle)
+    tab_resumen, tab_carrera, tab_individual = st.tabs(
+        ["Resumen general", "Por carrera", "Consulta individual"])
 
     # ---------- Pestaña: resumen general ----------
     with tab_resumen:
-        # Título descriptivo de la pestaña de métricas y tabla global
         st.subheader("Estado de becas de todos los estudiantes")
-        # Subtexto informativo que aclara los límites de evaluación parametrizados
         st.caption(f"Requisitos: promedio de {PROMEDIO} o más y máximo {REPROBADO} asignaturas reprobadas.")
 
-        # Inicialización del acumulador numérico por cada categoría de estado posible
         conteo = {"Con beca": 0, "Sin beca": 0, "Sin registro": 0}
         for fila in filas:
-            # Incrementa en 1 el contador correspondiente según el estado del estudiante en la iteración
             conteo[fila["Estado"]] += 1
 
-        # Creación de una distribución visual de 3 columnas para mostrar las tarjetas de resumen (KPIs)
         columnas = st.columns(3)
         for columna, estado in zip(columnas, conteo):
-            # Inyección de código HTML renderizado para desplegar cuadros de estado estilizados con clases dinamizadas de CSS
             columna.markdown(
                 f'<div class="stat stat-{CLASES[estado]}"><span>{estado}</span><strong>{conteo[estado]}</strong></div>',
                 unsafe_allow_html=True,
             )
 
-        st.write("")  # Salto de línea / espaciador visual en la pantalla
+        st.write("")
 
-        # Cálculo de métrica porcentual de cobertura de becas sobre los estudiantes evaluables (excluye 'Sin registro')
         evaluados = conteo["Con beca"] + conteo["Sin beca"]
         if evaluados > 0:
             porcentaje = conteo["Con beca"] / evaluados
-            # Dibuja una barra de progreso que indica la proporción de becados sobre el total evaluado
             st.progress(
                 porcentaje,
                 text=f"{conteo['Con beca']} de {evaluados} estudiantes evaluados cumplen los requisitos ({porcentaje:.0%})",
             )
 
-        st.write("") # Salto de línea / espaciador visual en la pantalla
+        st.write("")
 
-        # Creación de dos columnas para albergar los controles de filtrado horizontal y búsqueda por texto
         col_filtro, col_buscar = st.columns([2, 1])
-        # Control de selección por botones de radio para filtrar por la columna "Estado"
         filtro = col_filtro.radio(
             "Mostrar", ["Todos", "Con beca", "Sin beca", "Sin registro"], horizontal=True
         )
-        # Campo de entrada de texto libre para buscar coincidencias por Nombre o por Carnet
-        buscar = col_buscar.text_input("Buscar", placeholder="Nombre o carnet")
+        # CAMBIO: max_chars y .strip() para ignorar espacios al inicio o al final
+        buscar = col_buscar.text_input("Buscar", placeholder="Nombre o carnet", max_chars=60).strip()
 
-        # Aplicación del filtrado de datos iterando la lista original de filas
         filas_filtradas = []
         for fila in filas:
-            # Condición 1: Comprueba si el filtro es 'Todos' o coincide exactamente con el estado de la fila
             coincide_estado = filtro == "Todos" or fila["Estado"] == filtro
-            # Condición 2: Comprueba si el texto ingresado se encuentra en el nombre (ignore case) o en el carnet
-            coincide_texto = buscar.lower() in fila["Nombre"].lower() or buscar in str(fila["Carnet"])
-            # Si ambas condiciones son verdaderas, el estudiante se incluye en la lista filtrada
+            coincide_texto = (buscar.lower() in str(fila["Nombre"]).lower()
+                              or buscar in str(fila["Carnet"]))
             if coincide_estado and coincide_texto:
                 filas_filtradas.append(fila)
 
-        # Si existen elementos coincidentes, se genera y configura la tabla interactiva de datos
         if filas_filtradas:
             st.dataframe(
                 pd.DataFrame(filas_filtradas),
                 width="stretch",
                 hide_index=True,
+                # NUEVO: solo estas columnas se ven en el resumen (las demás son para "Por carrera")
+                column_order=["Carnet", "Nombre", "Carrera", "Semestres", "Último promedio", "Estado"],
                 column_config={
-                    # Formatea el carnet como un número entero sin comas de miles (%d)
                     "Carnet": st.column_config.NumberColumn("Carnet", format="%d"),
-                    # Formatea el promedio mostrando una barra visual con rango de 0 a 100 y 1 decimal (%1.f)
                     "Último promedio": st.column_config.ProgressColumn(
                         "Último promedio", min_value=0, max_value=100, format="%.1f"
                     ),
                 },
             )
-            # Pie de tabla indicando la proporción de resultados mostrados tras aplicar los filtros
             st.caption(f"Mostrando {len(filas_filtradas)} de {len(filas)} estudiantes")
         else:
-            # Mensaje en caso de que la búsqueda/filtro no devuelva ningún registro
             st.info("No hay estudiantes que coincidan con los filtros.")
+
+    # ---------- Pestaña: por carrera ----------
+    with tab_carrera:
+        st.subheader("Estudiantes por carrera")
+
+        por_carrera = {}
+        for fila in filas:
+            por_carrera.setdefault(fila["Carrera"], []).append(fila)
+
+        opciones_carrera = list(CARRERAS)
+        if OTRA in por_carrera:
+            opciones_carrera.append(OTRA)
+
+        # Resumen de todas las carreras de un vistazo
+        with st.expander("Resumen de todas las carreras"):
+            st.dataframe(
+                pd.DataFrame([
+                    {"Carrera": c,
+                     "Estudiantes": len(por_carrera.get(c, [])),
+                     "Con beca": contar(por_carrera.get(c, []), "Con beca"),
+                     "Sin beca": contar(por_carrera.get(c, []), "Sin beca"),
+                     "Sin registro": contar(por_carrera.get(c, []), "Sin registro")}
+                    for c in opciones_carrera
+                ]),
+                width="stretch", hide_index=True,
+            )
+
+        carrera_sel = st.selectbox(
+            "Carrera", opciones_carrera,
+            format_func=lambda c: f"{c} ({len(por_carrera.get(c, []))})",
+            key="carr_sel",
+        )
+        grupo = por_carrera.get(carrera_sel, [])
+
+        if not grupo:
+            st.info(f"No hay estudiantes registrados en {carrera_sel}.")
+        else:
+            # Subdivisiones dentro de la carrera (las llaves incluyen la carrera para no mezclar filtros)
+            col_estado, col_buscar_c = st.columns([2, 1])
+            filtro_estado = col_estado.radio(
+                "Estado", ["Todos", "Con beca", "Sin beca", "Sin registro"],
+                horizontal=True, key=f"carr_estado_{carrera_sel}")
+            buscar_c = col_buscar_c.text_input(
+                "Buscar", placeholder="Nombre o carnet", max_chars=60,
+                key=f"carr_buscar_{carrera_sel}").strip()
+
+            semestres = sorted({f["Último semestre"] for f in grupo if f["Último semestre"]},
+                               reverse=True)
+            sem_sel = st.multiselect("Último semestre", semestres,
+                                     key=f"carr_sem_{carrera_sel}")
+
+            visibles = [
+                f for f in grupo
+                if (filtro_estado == "Todos" or f["Estado"] == filtro_estado)
+                and (not sem_sel or f["Último semestre"] in sem_sel)
+                and (buscar_c.lower() in str(f["Nombre"]).lower() or buscar_c in str(f["Carnet"]))
+            ]
+
+            if visibles:
+                tabla_c = pd.DataFrame(visibles)[["Carnet", "Nombre", "Edad", "Último semestre",
+                                                  "Último promedio", "Reprobados", "Estado"]]
+                tabla_c.insert(0, "N°", range(1, len(tabla_c) + 1))   # tabla enumerada
+                st.dataframe(
+                    tabla_c, width="stretch", hide_index=True,
+                    column_config={
+                        "Carnet": st.column_config.NumberColumn("Carnet", format="%d"),
+                        "Último promedio": st.column_config.ProgressColumn(
+                            "Último promedio", min_value=0, max_value=100, format="%.1f"),
+                    },
+                )
+            else:
+                st.info("No hay estudiantes que coincidan con los filtros.")
+
+            # ----- Conteo final de la carrera -----
+            st.markdown(f"**Conteo de {carrera_sel}**")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total en la carrera", len(grupo))
+            m2.metric("Con beca", contar(grupo, "Con beca"))
+            m3.metric("Sin beca", contar(grupo, "Sin beca"))
+            m4.metric("Sin registro", contar(grupo, "Sin registro"))
+
+            # Conteo de la selección actual (útil para el informe exacto)
+            if len(visibles) != len(grupo):
+                st.caption(
+                    f"Con los filtros actuales: {len(visibles)} de {len(grupo)} estudiantes "
+                    f"({contar(visibles, 'Con beca')} con beca, {contar(visibles, 'Sin beca')} sin beca, "
+                    f"{contar(visibles, 'Sin registro')} sin registro)."
+                )
 
     # ---------- Pestaña: consulta individual ----------
     with tab_individual:
-        # Encabezado para la búsqueda y desplegado detallado del perfil de un estudiante
         st.subheader("Consultar un estudiante")
 
-        # Construcción del diccionario 'opciones' para el selectbox: asigna 'Carnet - Nombre' (Etiqueta) -> Carnet (ID clave)
         opciones = {}
         for carnet, estudiante in datos["estudiantes"].items():
-            opciones[f"{carnet} - {estudiante['Nombre']}"] = carnet
+            opciones[f"{carnet} - {estudiante.get('Nombre', '—')}"] = carnet
 
-        # Control selectbox desplegable para elegir el estudiante activo a consultar
         seleccion = st.selectbox("Estudiante", list(opciones.keys()))
-        # Recuperación de la clave (carnet) correspondiente al elemento seleccionado del menú
         carnet = opciones[seleccion]
-        # Extracción de la información básica y el historial académico del estudiante seleccionado
         estudiante = datos["estudiantes"][carnet]
-        historial = datos["academico"].get(carnet, [])
-        # Re-evaluación del estado y motivo del estudiante específico
+        # CAMBIO: historial limpio y ordenado (antes se usaba tal cual estaba en el JSON)
+        historial = historial_limpio(datos["academico"].get(carnet, []))
         estado, motivo = estado_beca(historial)
 
-        # Lectura directa del archivo de plantilla HTML ubicado en plantillas/ficha.html usando codificación UTF-8
-        ficha = (CARPETA / "plantillas" / "ficha.html").read_text(encoding="utf-8")
-        # Inyección de los datos del estudiante dentro de los marcadores posicionales del HTML mediante .format()
-        # html.escape() previene fallos de renderizado y ataques XSS neutralizando caracteres especiales (<, >, &, etc.)
+        # NUEVO: si falta la plantilla se muestra un error claro en lugar de romper toda la página
+        try:
+            ficha = (CARPETA / "plantillas" / "ficha.html").read_text(encoding="utf-8")
+        except OSError:
+            st.error("No se encontró la plantilla plantillas/ficha.html.")
+            return
+
+        # CAMBIO: ahora TODOS los valores se escapan con html.escape (antes carnet, edad, estado y motivo
+        #         se insertaban sin escapar) y se usa .get() por si falta algún dato del estudiante.
         st.markdown(
             ficha.format(
-                nombre=html.escape(estudiante["Nombre"]),
-                carrera=html.escape(estudiante["carrera"]),
-                correo=html.escape(estudiante["correo"]),
-                carnet=estudiante["carnet"],
-                edad=estudiante["Edad"],
-                estado=estado,
+                nombre=html.escape(str(estudiante.get("Nombre", "—"))),
+                carrera=html.escape(str(estudiante.get("carrera", "—"))),
+                correo=html.escape(str(estudiante.get("correo", "—"))),
+                carnet=html.escape(str(estudiante.get("carnet", carnet))),
+                edad=html.escape(str(estudiante.get("Edad", "—"))),
+                estado=html.escape(estado),
                 clase=CLASES[estado],
-                motivo=motivo,
+                motivo=html.escape(motivo),
             ),
             unsafe_allow_html=True,
         )
 
-        # Despliegue del botón nativo de Streamlit para descargar el documento PDF del informe individual
-        # Invoca a 'generar_pdf()' pasando la información completa y retorna el contenido binario listo para la descarga
-        st.download_button(
-            "Descargar reporte en PDF",
-            data=generar_pdf(estudiante, historial, estado, motivo),
-            file_name=f"reporte_{carnet}.pdf",
-            mime="application/pdf",
-            type="primary",
-        )
+        # CAMBIO: la generación del PDF se protege con try/except. Se ejecuta en cada rerun de la página,
+        #         así que un fallo en reporte_pdf antes tumbaba toda la pestaña.
+        try:
+            pdf = bytes(generar_pdf(estudiante, historial, estado, motivo))
+        except Exception as e:
+            pdf = None
+            st.error(f"No se pudo generar el reporte en PDF: {e}")
 
-        # Si el estudiante posee historial académico de semestres registrados, despliega sus métricas e historial estructurado
+        if pdf is not None:
+            st.download_button(
+                "Descargar reporte en PDF",
+                data=pdf,
+                file_name=f"reporte_{carnet}.pdf",
+                mime="application/pdf",
+                type="primary",
+            )
+
         if historial:
-            # Obtiene el DataFrame limpio y procesado proveniente de la función 'tabla_historial' en academico.py
             tabla = tabla_historial(historial)
 
-            # Despliegue de 3 tarjetas numéricas (Metrics) con resumenes globales del estudiante
             col1, col2, col3 = st.columns(3)
-            # Métrica 1: Número total de semestres cursados (filas del historial)
             col1.metric("Semestres cursados", len(tabla))
-            # Métrica 2: Promedio aritmético acumulado de todos los semestres cursados
             col2.metric("Promedio general", f"{tabla['Promedio'].mean():.1f}")
-            # Métrica 3: Promedio obtenido en el último semestre registrado (.iloc[-1])
             col3.metric("Último promedio", f"{tabla['Promedio'].iloc[-1]:.1f}")
 
-            # Subtítulo explicativo para la visualización del desglose académico
             st.markdown("**Historial académico**")
-            # Renderizado del DataFrame del historial académico con configuración de barra de progreso para la columna Promedio
             st.dataframe(
                 tabla,
                 width="stretch",
@@ -245,3 +351,6 @@ def modulo_consulta_becas(datos):
                     ),
                 },
             )
+        else:
+            # NUEVO: antes no se mostraba nada si el estudiante no tenía semestres
+            st.info("Este estudiante aún no tiene semestres registrados.")

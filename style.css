@@ -16,34 +16,47 @@ Cómo está organizado:
 /* ---------- 1. COLORES Y TIPOGRAFÍA ----------
    PALETA: celeste nórdico. Para probar otra, reemplaza solo este bloque. */
 :root {
-    --hdr-a: #abcdd4;        /* barra de navegación: inicio del degradado (celeste nórdico) */
-    --hdr-b: #6b9ca7;        /* barra de navegación: final del degradado */
-    --nav-activo: #25525c;   /* pestaña activa y botones principales */
-    --acento: #25525c;       /* líneas de énfasis, aro de los campos */
-    --fondo-a: #f1f6f7;      /* fondo de la página: inicio del degradado */
-    --fondo-b: #d5e4e7;      /* fondo de la página: final del degradado */
-    --tarjeta: #ffffff;      /* tarjeta grande donde va el contenido */
-    --superficie: #e2edf0;   /* tarjetas pequeñas, ficha, desplegables */
-    --texto-titulo: #143238; /* títulos */
-    --texto: #0f2428;        /* texto principal */
-    --texto-suave: #426066;  /* texto secundario */
-    --borde: #adc4c9;        /* líneas suaves */
-    --campo-1: #d2e7e5;      /* campos de texto (verde institucional suave) */
-    --campo-2: #d4e6eb;      /* listas desplegables (celeste nórdico suave) */
-    --campo-3: #f4dbe0;      /* campos numéricos (rosa pastel atenuado) */
-    --banner-a: #396d77;     /* banner de Inicio */
-    --banner-b: #193d44;
-    --verde: #06472b;        /* verde / rojo: significan beca / sin beca, no se cambian */
-    --rojo: #d64545;
-    --info: #4c7b9e;         /* estado "Sin registro" */
-    --alto-barra: 4rem;      /* altura de la barra de navegación */
-    --radio: 12px;           /* esquinas de campos, tarjetas pequeñas y botones */
-    --radio-grande: 20px;    /* esquinas de la tarjeta grande y la barra */
-    --sombra: 0 8px 24px rgba(25, 61, 68, 0.08);
-    --sombra-fuerte: 0 14px 30px rgba(25, 61, 68, 0.18);
-    --fuente: 'Nunito', system-ui, sans-serif;
-}
+    /* Identidad UNI (Azul Oficial Pantone 661 C) y acentos */
+    --uni-azul: #003366;       /* Azul UNI oficial para destacar */
+    --hdr-a: #204a75;          /* barra de navegación: inicio del degradado */
+    --hdr-b: #003366;          /* barra de navegación: final del degradado (Azul UNI) */
+    --nav-activo: #002244;     /* pestaña activa y botones principales (Azul profundo) */
+    --acento: #003366;         /* líneas de énfasis, aro de los campos */
 
+    /* Fondos y superficies con balance neutro elegante */
+    --fondo-a: #f6f8fa;        /* fondo de la página: inicio del degradado */
+    --fondo-b: #e4edf5;        /* fondo de la página: final del degradado */
+    --tarjeta: #ffffff;        /* tarjeta grande donde va el contenido */
+    --superficie: #ecf2f7;     /* tarjetas pequeñas, ficha, desplegables */
+
+    /* Jerarquía de textos */
+    --texto-titulo: #0d233a;   /* títulos principales */
+    --texto: #16293d;          /* texto principal */
+    --texto-suave: #52687d;    /* texto secundario */
+    --borde: #cbd8e3;          /* líneas suaves y delimitadores */
+
+    /* Campos de formulario diferenciados y suaves */
+    --campo-1: #e1ebf4;        /* campos de texto */
+    --campo-2: #d9e6f2;        /* listas desplegables */
+    --campo-3: #fae4e7;        /* campos numéricos (rosa discreto) */
+
+    /* Banners y estados temáticos */
+    --banner-a: #254d73;       /* banner de Inicio */
+    --banner-b: #0f2842;
+    --verde: #06472b;          /* significado: beca */
+    --rojo: #d64545;           /* significado: sin beca */
+    --info: #3d688f;           /* estado "Sin registro" */
+
+    /* Parámetros generales de diseño */
+    --alto-barra: 4rem;        /* altura de la barra de navegación */
+    --radio: 12px;             /* esquinas estándar */
+    --radio-grande: 20px;      /* esquinas de tarjeta grande y barra */
+    --sombra: 0 8px 24px rgba(0, 51, 102, 0.08);
+    --fuente: 'Nunito', system-ui, sans-serif;
+
+        --ancho-contenido: min(1200px, 100vw - 2rem);
+    --alto-membrete: calc(var(--ancho-contenido) * 0.141);   /* proporción de la imagen (1172x165) */
+}
 /* ---------- 2. ESTRUCTURA GENERAL ---------- */
 html {
     scroll-behavior: smooth;
@@ -118,17 +131,18 @@ html {
 [data-testid="stTopNav"] a {
     border-radius: 14px;
     padding: 0.5rem 1rem;
-    color: var(--texto-titulo);
+    color: rgba(255, 255, 255, 0.85) !important; /* Texto claro legible sobre el azul */
     font-weight: 700;
     transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 [data-testid="stTopNav"] a * {
-    color: inherit;
+    color: inherit !important;
 }
 
 [data-testid="stTopNav"] a:hover {
-    background: rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.15); /* Fondo sutil al pasar el mouse */
+    color: #ffffff !important;
     transform: translateY(-2px);
 }
 
@@ -138,10 +152,15 @@ html {
 
 [data-testid="stTopNav"] a[aria-current="page"] {
     background: var(--nav-activo);
-    color: #ffffff;
+    color: #ffffff !important;
     box-shadow: 0 6px 14px color-mix(in srgb, var(--nav-activo) 40%, transparent);
 }
 
+/* Refuerzo global para asegurar visibilidad en los textos de la barra */
+[data-testid="stTopNav"] span, 
+[data-testid="stTopNav"] div {
+    color: inherit;
+}
 /* ----- Logo de la UNI: dentro de la barra, a la derecha, antes del menú de tres puntos -----
    Se dibuja como parte de la propia barra (no como un elemento de la página), así siempre
    queda dentro del header. La imagen la entrega app.py en la variable --logo-uni. */
@@ -159,14 +178,43 @@ html {
 
 /* ----- Contenido: tarjeta grande y redondeada ----- */
 [data-testid="stMainBlockContainer"] {
+    position: relative;
     background: var(--tarjeta);
     border: 1px solid var(--borde);
     border-radius: var(--radio-grande);
     box-shadow: var(--sombra);
     max-width: 1200px;
     width: calc(100% - 2rem);
-    margin: calc(var(--alto-barra) + 2rem) auto 1.5rem auto;
+    /* deja espacio arriba para el membrete: barra + imagen + respiro */
+    margin: calc(var(--alto-barra) + var(--alto-membrete) + 1.75rem) auto 1.5rem auto;
     padding: 2rem 2.25rem 3rem 2.25rem !important;
+}
+
+/* Membrete institucional: la imagen de la UNI sobre la tarjeta, fundida con el fondo */
+[data-testid="stMainBlockContainer"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 0.5rem);
+    height: var(--alto-membrete);
+    background: var(--fondo-uni) center / 100% 100% no-repeat;
+    mix-blend-mode: multiply;            /* el blanco de la imagen se funde con el degradado del fondo */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%);
+    pointer-events: none;
+}
+
+/* Línea de acento institucional entre el membrete y el contenido */
+[data-testid="stMainBlockContainer"]::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 2.25rem;
+    right: 2.25rem;
+    height: 4px;
+    border-radius: 0 0 6px 6px;
+    background: linear-gradient(90deg, var(--uni-azul), #2b7fd4, transparent);
 }
 
 /* Títulos */
@@ -179,7 +227,14 @@ h3,
     color: var(--texto-titulo);
     letter-spacing: -0.2px;
 }
-
+.banner-logo {
+    height: 200px;
+    width: auto;
+    padding: 0 48px 0 24px;
+    margin-right: 32px;
+    border-right: 1px solid rgba(255, 255, 255, 0.3);   /* línea divisoria */
+    object-fit: contain;
+}
 /* ---------- 3. COMPONENTES DE STREAMLIT ---------- */
 
 /* Tarjetas de números (st.metric) */
@@ -750,10 +805,19 @@ Se usan en Inicio y en Consulta de becas:
     }
 
     .banner {
-        text-align: center;
+        flex-direction: column;
     }
 
+    .banner-logo {
+        border-right: none;
+        margin: 0 0 16px 0;
+        padding: 0;
+    }
     .ficha-datos {
         grid-template-columns: 1fr;
+    }
+
+        :root {
+        --ancho-contenido: calc(100vw - 1rem);
     }
 }
