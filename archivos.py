@@ -1,65 +1,113 @@
 # =============================================================================
 # archivos.py -> Módulo de PERSISTENCIA Y MANEJO DE ARCHIVOS JSON
 #
-# Este módulo se encarga de gestionar la lectura y el almacenamiento seguro 
-# de la información del sistema utilizando archivos JSON y archivos temporales 
-# para prevenir la corrupción de datos.
+# Lee y guarda la información del sistema en un archivo JSON, usando un archivo
+# temporal para prevenir la corrupción de datos.
+#
+# Marcas de los comentarios:
+#   # NUEVO:  -> algo que se agregó en esta versión
+#   # CAMBIO: -> algo que ya existía y se modificó
 # =============================================================================
 
-import json     # Importación del módulo nativo json para la codificación y decodificación de datos estructurados
-import os       # Importación del módulo os para interactuar con el sistema operativo (rutas, archivos, respaldos)
-import tempfile # Importación del módulo tempfile para crear archivos temporales seguros durante la escritura
+import copy    # NUEVO: para copias profundas de la estructura base
+import json
+import os
+import tempfile
+import time    # NUEVO: para nombrar los respaldos con fecha y hora
 
-# Definición de constantes globales: nombre predeterminado del archivo de base de datos local
 ARCHIVO = "becas.json"
-# Estructura de datos base inicial obligatoria en caso de que el archivo no exista o se corrompa
 ESTRUCTURA_BASE = {"estudiantes": {}, "academico": {}}
 
 
-# Función encargada de cargar y recuperar los datos persistidos desde el archivo JSON especificado
+# NUEVO: Devuelve una copia PROFUNDA de la estructura base.
+#        Antes se usaba ESTRUCTURA_BASE.copy() (copia superficial): los diccionarios internos
+#        se compartían, así que al agregar un estudiante se modificaba la constante original.
+def _estructura_base() -> dict:
+    return copy.deepcopy(ESTRUCTURA_BASE)
+
+
+# NUEVO: Comprueba que los datos tengan la forma esperada (evita errores si el JSON es válido pero está mal formado
+#        o fue editado a mano: una lista en vez de un diccionario, historial que no es lista, etc.)
+def _estructura_valida(datos) -> bool:
+    if not isinstance(datos, dict):
+        return False
+    estudiantes = datos.get("estudiantes", {})
+    academico = datos.get("academico", {})
+    if not isinstance(estudiantes, dict) or not isinstance(academico, dict):
+        return False
+    if not all(isinstance(e, dict) for e in estudiantes.values()):
+        return False
+    for historial in academico.values():
+        if not isinstance(historial, list) or not all(isinstance(r, dict) for r in historial):
+            return False
+    return True
+
+
+# NUEVO: Renombra el archivo dañado con fecha y hora (antes un .bak nuevo pisaba al anterior y se perdía el respaldo previo)
+def _respaldar(ruta: str) -> None:
+    destino = f"{ruta}.{time.strftime('%Y%m%d-%H%M%S')}.bak"
+    try:
+        os.replace(ruta, destino)
+    except OSError:
+        pass   # Si ni siquiera se puede renombrar, se continúa con la estructura base
+
+
 def cargar_datos(ruta: str = ARCHIVO) -> dict:
-    # Condición de guarda: si el archivo en la ruta dada no existe en disco, retorna una copia de la estructura base vacía
     if not os.path.exists(ruta):
-        return ESTRUCTURA_BASE.copy()
+        return _estructura_base()   # CAMBIO: copia profunda
 
     try:
-        # Apertura del archivo en modo lectura ("r") con codificación UTF-8 para soportar tildes y caracteres especiales
         with open(ruta, "r", encoding="utf-8") as f:
-            datos = json.load(f)   # Carga y deserializa el contenido JSON en un diccionario de Python
+            datos = json.load(f)
+    # CAMBIO: ValueError cubre JSON malformado y también archivos con codificación inválida (UnicodeDecodeError)
+    except (ValueError, OSError):
+        _respaldar(ruta)
+        return _estructura_base()
 
-        # Garantiza mediante setdefault que las claves principales siempre existan, evitando errores si el JSON está incompleto
-        datos.setdefault("estudiantes", {})
-        datos.setdefault("academico", {})
-        return datos
-    except (json.JSONDecodeError, OSError):
-        # Manejo robusto de errores: si el archivo está corrupto (JSON malformado) o hay un error de E/S (OSError)...
-        if os.path.exists(ruta):
-            os.replace(ruta, f"{ruta}.bak")   # ...crea un respaldo renombrando el archivo dañado con la extensión .bak
-        # Retorna la estructura base limpia para evitar que la aplicación colapse
-        return ESTRUCTURA_BASE.copy()
+    # NUEVO: JSON válido pero con estructura incorrecta -> se trata como archivo dañado
+    if not _estructura_valida(datos):
+        _respaldar(ruta)
+        return _estructura_base()
+
+    datos.setdefault("estudiantes", {})
+    datos.setdefault("academico", {})
+    return datos
 
 
-# Función encargada de guardar de forma segura los datos en el archivo JSON utilizando un archivo temporal
 def guardar_datos(datos: dict, ruta: str = ARCHIVO) -> bool:
-    # Obtiene el directorio padre de la ruta de destino; si está vacío, utiliza el directorio actual (".")
+    # NUEVO: nunca se escribe en disco una estructura inválida
+    if not _estructura_valida(datos):
+        print("Error crítico al guardar datos: la estructura de datos no es válida")
+        return False
+
     directorio = os.path.dirname(ruta) or "."
     temp_name = None
 
     try:
-        # Creación de un archivo temporal seguro en el mismo directorio para evitar sobreescribir directamente el archivo final
         with tempfile.NamedTemporaryFile(
-            "w", delete=False, dir=directorio, encoding="utf-8"
+            "w", delete=False, dir=directorio, encoding="utf-8", suffix=".tmp"
         ) as tf:
-            temp_name = tf.name   # Almacena la ruta temporal única asignada al archivo
-            # Serializa el diccionario de datos a formato JSON con indentación de 2 espacios y soporte para caracteres Unicode
+            temp_name = tf.name
             json.dump(datos, tf, ensure_ascii=False, indent=2)
+            # NUEVO: fuerza la escritura real a disco antes de reemplazar el archivo original
+            tf.flush()
+            os.fsync(tf.fileno())
 
-        # Operación atómica de reemplazo: sustituye el archivo original por el archivo temporal de manera segura
         os.replace(temp_name, ruta)
-        return True   # Retorna True indicando que el guardado fue exitoso
+        return True
     except Exception as e:
-        # Manejo de excepciones: si ocurre cualquier fallo durante el proceso de escritura o reemplazo...
         if temp_name and os.path.exists(temp_name):
-            os.remove(temp_name)   # ...elimina el archivo temporal huérfano si llegó a crearse
-        print(f"Error crítico al guardar datos: {e}")   # Muestra un mensaje descriptivo del error por consola
-        return False   # Retorna False indicando que el guardado falló
+            os.remove(temp_name)
+        print(f"Error crítico al guardar datos: {e}")
+        return False
+
+
+# NUEVO: Guarda y, si falla, muestra un error visible y detiene la ejecución.
+#        Antes los módulos ignoraban el True/False de guardar_datos y el usuario veía
+#        "registrado correctamente" aunque nada se hubiera guardado en el archivo.
+def guardar_o_detener(datos: dict) -> None:
+    if not guardar_datos(datos):
+        import streamlit as st   # Importación local para que este módulo siga siendo independiente de Streamlit
+        st.error("No se pudieron guardar los cambios en el archivo. "
+                 "Revisa los permisos y el espacio en disco e inténtalo de nuevo.")
+        st.stop()

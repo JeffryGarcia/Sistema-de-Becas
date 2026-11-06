@@ -1,74 +1,220 @@
 /* =============================================================================
-style.css -> ESTILOS de SG UNI (tema oscuro, azul UNI y blanco)
+style.css -> ESTILOS de SG UNI (barra de navegación redondeada, tarjeta suave,
+             campos pastel y movimiento para que el sistema se sienta vivo)
 
 Cómo está organizado:
     1. Colores y tipografía  (las variables de :root: cambia un color aquí y cambia en todo)
-    2. Estructura general    (fondo, barra superior, logo, títulos)
-    3. Componentes de Streamlit (métricas, pestañas, botones, campos)
-    4. Componentes propios   (banner, tarjetas .stat, ficha del estudiante)
+    2. Estructura general    (fondo, barra de navegación, tarjeta de contenido)
+    3. Componentes de Streamlit (métricas, pestañas, botones, campos, tablas)
+    4. Componentes propios   (banner, tarjetas, accesos rápidos, ficha del estudiante)
+    5. Movimiento            (animaciones; se apagan si el equipo pide menos movimiento)
 ============================================================================= */
 
-/* Tipografía: títulos y texto con Inter. Si no hay internet se usa la letra del sistema. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Tipografía: Nunito, redondeada y amable. Si no hay internet se usa la letra del sistema. */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 
-/* ---------- 1. COLORES Y TIPOGRAFÍA ---------- */
+/* ---------- 1. COLORES Y TIPOGRAFÍA ----------
+   PALETA: celeste nórdico. Para probar otra, reemplaza solo este bloque. */
 :root {
-    --uni: #003485;            /* el azul UNI (sacado del escudo) */
-    --uni-claro: #0a4fc4;      /* azul UNI más vivo, para degradados */
-    --uni-oscuro: #00235c;     /* azul UNI más oscuro, para tarjetas */
-    --fondo: #020f2a;          /* fondo general */
-    --superficie: #0a1f4d;     /* fondo de tarjetas y tablas */
-    --acento: #5b9bff;         /* azul claro para destacar números y detalles */
-    --blanco: #ffffff;
-    --texto-suave: #aebfdf;    /* texto secundario */
-    --borde: rgba(255, 255, 255, 0.14);   /* línea blanca suave */
-    --verde: #3ecf8e;          /* verde / rojo: significan beca / sin beca, no se cambian */
-    --rojo: #ff6b78;
-    --fuente: 'Inter', system-ui, sans-serif;
+    /* Identidad UNI (Azul Oficial Pantone 661 C) y acentos */
+    --uni-azul: #003366;       /* Azul UNI oficial para destacar */
+    --hdr-a: #204a75;          /* barra de navegación: inicio del degradado */
+    --hdr-b: #003366;          /* barra de navegación: final del degradado (Azul UNI) */
+    --nav-activo: #002244;     /* pestaña activa y botones principales (Azul profundo) */
+    --acento: #003366;         /* líneas de énfasis, aro de los campos */
+
+    /* Fondos y superficies con balance neutro elegante */
+    --fondo-a: #f6f8fa;        /* fondo de la página: inicio del degradado */
+    --fondo-b: #e4edf5;        /* fondo de la página: final del degradado */
+    --tarjeta: #ffffff;        /* tarjeta grande donde va el contenido */
+    --superficie: #ecf2f7;     /* tarjetas pequeñas, ficha, desplegables */
+
+    /* Jerarquía de textos */
+    --texto-titulo: #0d233a;   /* títulos principales */
+    --texto: #16293d;          /* texto principal */
+    --texto-suave: #52687d;    /* texto secundario */
+    --borde: #cbd8e3;          /* líneas suaves y delimitadores */
+
+    /* Campos de formulario diferenciados y suaves */
+    --campo-1: #e1ebf4;        /* campos de texto */
+    --campo-2: #d9e6f2;        /* listas desplegables */
+    --campo-3: #fae4e7;        /* campos numéricos (rosa discreto) */
+
+    /* Banners y estados temáticos */
+    --banner-a: #254d73;       /* banner de Inicio */
+    --banner-b: #0f2842;
+    --verde: #06472b;          /* significado: beca */
+    --rojo: #d64545;           /* significado: sin beca */
+    --info: #3d688f;           /* estado "Sin registro" */
+
+    /* Parámetros generales de diseño */
+    --alto-barra: 4rem;        /* altura de la barra de navegación */
+    --radio: 12px;             /* esquinas estándar */
+    --radio-grande: 20px;      /* esquinas de tarjeta grande y barra */
+    --sombra: 0 8px 24px rgba(0, 51, 102, 0.08);
+    --fuente: 'Nunito', system-ui, sans-serif;
+
+        --ancho-contenido: min(1200px, 100vw - 2rem);
+    --alto-membrete: calc(var(--ancho-contenido) * 0.141);   /* proporción de la imagen (1172x165) */
+}
+/* ---------- 2. ESTRUCTURA GENERAL ---------- */
+html {
+    scroll-behavior: smooth;
 }
 
-/* ---------- 2. ESTRUCTURA GENERAL ---------- */
 .stApp {
-    /* un resplandor azul arriba para que el fondo no sea plano */
-    background:
-        radial-gradient(ellipse 80% 40% at 50% -10%, rgba(0, 52, 133, 0.75), transparent 70%),
-        var(--fondo);
+    background: linear-gradient(160deg, var(--fondo-a), var(--fondo-b)) fixed;
     font-family: var(--fuente);
 }
 
-/* Barra superior (aquí queda el logo y el menú de navegación) */
-[data-testid="stHeader"] {
-    background: rgba(0, 35, 92, 0.94);
-    backdrop-filter: blur(6px);
-    border-bottom: 1px solid var(--borde);
-    height: 7rem !important;   /* altura justa para el logo */
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"] {
+    background: transparent;
 }
 
-/* Logo (st.logo): cabe dentro de la barra con un poco de aire */
-[data-testid="stHeaderLogo"] {
-    height: 8rem !important;
-    max-height: none !important;
-    width: auto !important;
-    margin: 0.5rem 0 0.5rem 0.5rem !important;
-    object-fit: contain !important;
+/* Texto seleccionado y barra de desplazamiento con los colores del tema */
+::selection {
+    background: color-mix(in srgb, var(--acento) 30%, white);
 }
-/* Logo de la UNI: fijo a la derecha de la barra superior, en pastilla blanca para que se lea */
-.logo-uni {
-    position: fixed;
-    top: 0.5rem;             /* centrado: (7rem - 6rem) / 2 */
-    right: 10rem;            /* más al centro; sube el número para acercarlo más */
-    height: 6rem;            /* cabe en la barra de 7rem con aire arriba y abajo */
-    width: auto;
-    object-fit: contain;
-    z-index: 1000000;
-}/* Saca de la página el contenedor vacío para que no deje el hueco que se ve arriba */
-[data-testid="stHeader"] { height: 8.5rem !important; }
-.logo-uni { top: 0.75rem; height: 7rem; }
-[data-testid="stMainBlockContainer"] { padding-top: 9.5rem !important; }
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--acento) 35%, transparent);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--acento) 60%, transparent);
+}
+
+/* ----- Barra de navegación: píldora flotante con degradado ----- */
+[data-testid="stHeader"] {
+    top: 0.75rem !important;
+    left: 1rem !important;
+    right: 1rem !important;
+    width: auto !important;
+    height: var(--alto-barra) !important;
+    border-radius: var(--radio-grande);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: var(--sombra);
+    background:
+        radial-gradient(ellipse 45% 170% at 100% 130%, color-mix(in srgb, var(--nav-activo) 35%, transparent), transparent 70%),
+        linear-gradient(100deg, var(--hdr-a), var(--hdr-b));
+}
+
 /* Se oculta el botón "Deploy" para que no distraiga */
 .stAppDeployButton,
 [data-testid="stAppDeployButton"] {
     display: none;
+}
+
+/* Menú de tres puntos: círculo blanco que gira un poco al pasar el mouse */
+[data-testid="stMainMenu"] button,
+[data-testid="stToolbar"] button {
+    background: #ffffff;
+    border-radius: 50%;
+    color: var(--texto-titulo);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+[data-testid="stMainMenu"] button:hover,
+[data-testid="stToolbar"] button:hover {
+    transform: scale(1.1) rotate(90deg);
+    box-shadow: 0 4px 12px rgba(25, 61, 68, 0.25);
+}
+
+/* Enlaces del menú: se resaltan al pasar el mouse y la página activa va en pastilla */
+[data-testid="stTopNav"] a {
+    border-radius: 14px;
+    padding: 0.5rem 1rem;
+    color: rgba(255, 255, 255, 0.85) !important; /* Texto claro legible sobre el azul */
+    font-weight: 700;
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-testid="stTopNav"] a * {
+    color: inherit !important;
+}
+
+[data-testid="stTopNav"] a:hover {
+    background: rgba(255, 255, 255, 0.15); /* Fondo sutil al pasar el mouse */
+    color: #ffffff !important;
+    transform: translateY(-2px);
+}
+
+[data-testid="stTopNav"] a:active {
+    transform: scale(0.96);
+}
+
+[data-testid="stTopNav"] a[aria-current="page"] {
+    background: var(--nav-activo);
+    color: #ffffff !important;
+    box-shadow: 0 6px 14px color-mix(in srgb, var(--nav-activo) 40%, transparent);
+}
+
+/* Refuerzo global para asegurar visibilidad en los textos de la barra */
+[data-testid="stTopNav"] span, 
+[data-testid="stTopNav"] div {
+    color: inherit;
+}
+/* ----- Logo de la UNI: dentro de la barra, a la derecha, antes del menú de tres puntos -----
+   Se dibuja como parte de la propia barra (no como un elemento de la página), así siempre
+   queda dentro del header. La imagen la entrega app.py en la variable --logo-uni. */
+[data-testid="stHeader"]::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 4.5rem;                       /* sube el número para moverlo a la izquierda */
+    transform: translateY(-50%);
+    width: 8rem;                         /* caja del logo; la imagen se ajusta dentro */
+    height: 2.8rem;                      /* alto del logo */
+    background: var(--logo-uni) right center / contain no-repeat;
+    pointer-events: none;
+}
+
+/* ----- Contenido: tarjeta grande y redondeada ----- */
+[data-testid="stMainBlockContainer"] {
+    position: relative;
+    background: var(--tarjeta);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-grande);
+    box-shadow: var(--sombra);
+    max-width: 1200px;
+    width: calc(100% - 2rem);
+    /* deja espacio arriba para el membrete: barra + imagen + respiro */
+    margin: calc(var(--alto-barra) + var(--alto-membrete) + 1.75rem) auto 1.5rem auto;
+    padding: 2rem 2.25rem 3rem 2.25rem !important;
+}
+
+/* Membrete institucional: la imagen de la UNI sobre la tarjeta, fundida con el fondo */
+[data-testid="stMainBlockContainer"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 0.5rem);
+    height: var(--alto-membrete);
+    background: var(--fondo-uni) center / 100% 100% no-repeat;
+    mix-blend-mode: multiply;            /* el blanco de la imagen se funde con el degradado del fondo */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%);
+    pointer-events: none;
+}
+
+/* Línea de acento institucional entre el membrete y el contenido */
+[data-testid="stMainBlockContainer"]::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 2.25rem;
+    right: 2.25rem;
+    height: 4px;
+    border-radius: 0 0 6px 6px;
+    background: linear-gradient(90deg, var(--uni-azul), #2b7fd4, transparent);
 }
 
 /* Títulos */
@@ -77,144 +223,339 @@ h2,
 h3,
 [data-testid="stHeading"] {
     font-family: var(--fuente);
-    font-weight: 700;
-    color: var(--blanco);
+    font-weight: 800;
+    color: var(--texto-titulo);
     letter-spacing: -0.2px;
 }
-
-/* Limita el ancho del contenido para que los formularios no se estiren
-   y lo baja para que empiece justo debajo de la barra superior */
-[data-testid="stMainBlockContainer"] {
-    max-width: 1100px;
-    margin-left: auto;
-    margin-right: auto;
-    padding-top: 5.5rem !important;
+.banner-logo {
+    height: 200px;
+    width: auto;
+    padding: 0 48px 0 24px;
+    margin-right: 32px;
+    border-right: 1px solid rgba(255, 255, 255, 0.3);   /* línea divisoria */
+    object-fit: contain;
 }
-
 /* ---------- 3. COMPONENTES DE STREAMLIT ---------- */
 
-/* Tarjetas de números (st.metric): azul UNI con borde izquierdo blanco */
+/* Tarjetas de números (st.metric) */
 [data-testid="stMetric"] {
-    background: linear-gradient(135deg, var(--uni), var(--uni-oscuro));
+    background: var(--superficie);
     border: 1px solid var(--borde);
-    border-left: 4px solid var(--blanco);
-    border-radius: 14px;
+    border-left: 5px solid var(--acento);
+    border-radius: var(--radio);
     padding: 16px 20px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-testid="stMetric"]:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--sombra);
 }
 
 [data-testid="stMetricLabel"] {
-    color: #cfdcf5;
+    color: var(--texto-suave);
 }
 
 [data-testid="stMetricValue"] {
     font-weight: 800;
-    color: var(--blanco);
+    color: var(--texto-titulo);
 }
 
-/* Pestañas: la activa lleva una línea azul claro debajo */
+/* Pestañas: la activa lleva una línea del color de acento */
 [data-baseweb="tab"] {
     color: var(--texto-suave);
+    font-weight: 600;
+    transition: color 0.2s ease, background 0.2s ease;
 }
 
 [data-baseweb="tab"][aria-selected="true"] {
-    color: var(--blanco);
+    color: var(--texto-titulo);
 }
 
 [data-baseweb="tab-highlight"] {
     background-color: var(--acento);
 }
 
-/* Botones principales: blancos con letra azul UNI */
+/* Botones principales: color de acento con letra blanca; suben al pasar el mouse y se hunden al presionar */
 [data-testid="stBaseButton-primary"],
 [data-testid="stBaseButton-primaryFormSubmit"] {
-    background: var(--blanco);
-    color: var(--uni);
+    background: var(--nav-activo);
+    color: #ffffff;
     border: none;
+    border-radius: var(--radio);
     font-weight: 700;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
 [data-testid="stBaseButton-primary"]:hover,
 [data-testid="stBaseButton-primaryFormSubmit"]:hover {
-    background: #dce8ff;
-    color: var(--uni);
+    color: #ffffff;
+    filter: brightness(1.1);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--nav-activo) 35%, transparent);
 }
 
-/* Botones secundarios: borde blanco suave, fondo transparente */
+[data-testid="stBaseButton-primary"]:active,
+[data-testid="stBaseButton-primaryFormSubmit"]:active {
+    transform: translateY(0) scale(0.97);
+    box-shadow: none;
+}
+
+/* Botones secundarios: borde suave, se llenan de color al pasar el mouse */
 [data-testid="stBaseButton-secondary"] {
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: var(--blanco);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    color: var(--texto-titulo);
+    font-weight: 600;
+    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 
 [data-testid="stBaseButton-secondary"]:hover {
+    background: var(--superficie);
     border-color: var(--acento);
     color: var(--acento);
+    transform: translateY(-1px);
 }
 
-/* Campos de texto y listas desplegables */
+[data-testid="stBaseButton-secondary"]:active {
+    transform: scale(0.97);
+}
+
+/* Campos: pastel, sin borde duro, con un aro de color al pasar el mouse y al enfocarlos.
+   Texto = verde, listas = celeste, números = rosa */
 [data-baseweb="input"],
 [data-baseweb="base-input"],
 [data-baseweb="select"] > div {
-    border-radius: 10px;
+    border-radius: var(--radio) !important;
+    border: 1px solid transparent !important;
+    background: var(--campo-1) !important;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+[data-baseweb="input"] input,
+[data-baseweb="base-input"] input {
+    background: transparent !important;
+    color: var(--texto);
+}
+
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div {
+    background: var(--campo-2) !important;
+}
+
+[data-testid="stNumberInput"] [data-baseweb="input"],
+[data-testid="stNumberInput"] [data-baseweb="base-input"] {
+    background: var(--campo-3) !important;
+}
+
+[data-baseweb="input"]:hover,
+[data-baseweb="select"]:hover > div {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--acento) 18%, transparent);
+}
+
+[data-baseweb="input"]:focus-within,
+[data-baseweb="select"]:focus-within > div {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 30%, transparent);
 }
 
 /* Cuadros desplegables (st.expander) */
 [data-testid="stExpander"] {
     border: 1px solid var(--borde);
-    border-radius: 12px;
-    background: rgba(10, 31, 77, 0.6);
+    border-radius: var(--radio);
+    background: var(--superficie);
+    transition: box-shadow 0.2s ease;
+}
+
+[data-testid="stExpander"]:hover {
+    box-shadow: var(--sombra);
+}
+
+/* Avisos (st.info, st.warning, st.error, st.success): entran deslizándose */
+[data-testid="stAlert"] {
+    border-radius: var(--radio);
+    animation: aparecer 0.4s ease backwards;
+}
+
+/* Mensajes emergentes (st.toast) */
+[data-testid="stToast"] {
+    border-radius: var(--radio);
+    box-shadow: var(--sombra-fuerte);
+}
+
+/* Tablas y gráficas */
+[data-testid="stDataFrame"],
+[data-testid="stVegaLiteChart"],
+[data-testid="stArrowVegaLiteChart"] {
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    overflow: hidden;
+    transition: box-shadow 0.25s ease;
+}
+
+[data-testid="stDataFrame"]:hover,
+[data-testid="stVegaLiteChart"]:hover,
+[data-testid="stArrowVegaLiteChart"]:hover {
+    box-shadow: var(--sombra);
+}
+
+/* Botones de selección (st.segmented_control / st.pills) */
+[data-testid="stButtonGroup"] button {
+    border-radius: 999px;
+    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-testid="stButtonGroup"] button:hover {
+    transform: translateY(-1px);
+}
+
+/* ----- Refuerzo: selectores que no dependen de la versión de Streamlit -----
+   Las versiones nuevas cambiaron algunos atributos internos (data-baseweb), así que
+   estas reglas apuntan a lo que no cambia: el rol de la pestaña y el contenedor directo del <input>. */
+[role="tab"] {
+    color: var(--texto-suave) !important;
+    font-weight: 600;
+}
+
+[role="tab"][aria-selected="true"] {
+    color: var(--texto-titulo) !important;
+    border-bottom-color: var(--acento) !important;
+}
+
+[data-baseweb="tab-highlight"] {
+    background-color: var(--acento) !important;
+}
+
+[data-testid="stTextInput"] div:has(> input),
+[data-testid="stTextArea"] div:has(> textarea) {
+    background: var(--campo-1) !important;
+    border: 1px solid transparent !important;
+    border-radius: var(--radio) !important;
+    transition: box-shadow 0.2s ease;
+}
+
+[data-testid="stNumberInput"] div:has(> input) {
+    background: var(--campo-3) !important;
+    border: 1px solid transparent !important;
+    border-radius: var(--radio) !important;
+    transition: box-shadow 0.2s ease;
+}
+
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stNumberInput"] input {
+    background: transparent !important;
+    color: var(--texto) !important;
+}
+
+[data-testid="stTextInput"] div:has(> input):hover,
+[data-testid="stTextArea"] div:has(> textarea):hover,
+[data-testid="stNumberInput"] div:has(> input):hover {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--acento) 18%, transparent);
+}
+
+[data-testid="stTextInput"] div:has(> input):focus-within,
+[data-testid="stTextArea"] div:has(> textarea):focus-within,
+[data-testid="stNumberInput"] div:has(> input):focus-within {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 30%, transparent);
 }
 
 /* ---------- 4. COMPONENTES PROPIOS ---------- */
 
-/* ----- Banner de Inicio (plantillas/banner.html) ----- */
+/* ----- Banner de Inicio (plantillas/banner.html) -----
+   Degradado que se desplaza despacio */
 .banner {
     display: flex;
     align-items: center;
-    gap: 28px;
-    padding: 28px 36px;
-    margin-bottom: 8px;
-    border-radius: 18px;
-    border: 1px solid var(--borde);
-    border-bottom: 4px solid var(--blanco);
-    background:
-        radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.16), transparent 45%),
-        linear-gradient(120deg, var(--uni), var(--uni-claro) 130%);
-}
-
-.banner-logo {
-    height: 200px;
-    width: auto;
-    flex-shrink: 0;
+    padding: 32px 40px;
+    margin-bottom: 12px;
+    border-radius: var(--radio-grande);
+    background: linear-gradient(120deg, var(--banner-a), var(--banner-b), var(--banner-a));
+    background-size: 200% 200%;
+    animation: brillo 14s ease-in-out infinite alternate;
+    box-shadow: var(--sombra);
 }
 
 .banner-texto {
-    border-left: 1px solid rgba(255, 255, 255, 0.35);
-    padding-left: 28px;
+    flex: 1;
 }
 
 .banner-titulo {
     font-size: 1.9rem;
     font-weight: 800;
     line-height: 1.2;
-    color: var(--blanco);
+    color: #ffffff;
 }
 
 .banner-subtitulo {
     margin-top: 8px;
     font-size: 1rem;
-    color: #d6e4ff;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* ----- Números que "cuentan" desde 0 hasta su valor (los dibuja app.py) -----
+   <strong class="cuenta" style="--valor:8"></strong>  ->  se anima 0, 1, 2 ... 8 */
+@property --num {
+    syntax: "<integer>";
+    initial-value: 0;
+    inherits: false;
+}
+
+.cuenta {
+    --num: var(--valor, 0);              /* sin animación (o con menos movimiento) muestra el valor final */
+    counter-reset: num var(--num);
+    animation: contar 1.2s ease-out backwards;
+}
+
+.cuenta::after {
+    content: counter(num);
+}
+
+/* ----- Tarjetas de números de Inicio (.kpi) -----
+<div class="kpi"><span>Estudiantes registrados</span><strong class="cuenta" style="--valor:8"></strong></div> */
+.kpi {
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-left: 5px solid var(--acento);
+    border-radius: var(--radio);
+    padding: 16px 20px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kpi:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--sombra-fuerte);
+}
+
+.kpi span {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--texto-suave);
+}
+
+.kpi strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--texto-titulo);
 }
 
 /* ----- Tarjetas de estado de beca (.stat) -----
 Se usan en Inicio y en Consulta de becas:
 <div class="stat stat-ok"><span>Con beca</span><strong>3</strong></div> */
 .stat {
-    background: linear-gradient(160deg, var(--superficie), var(--fondo));
+    background: var(--superficie);
     border: 1px solid var(--borde);
-    border-top: 4px solid var(--texto-suave);
-    border-radius: 14px;
+    border-top: 5px solid var(--texto-suave);
+    border-radius: var(--radio);
     padding: 14px 18px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--sombra-fuerte);
 }
 
 .stat span {
@@ -230,7 +571,7 @@ Se usan en Inicio y en Consulta de becas:
     margin-top: 6px;
     font-size: 2rem;
     font-weight: 800;
-    color: var(--blanco);
+    color: var(--texto-titulo);
 }
 
 .stat-ok {
@@ -242,16 +583,54 @@ Se usan en Inicio y en Consulta de becas:
 }
 
 .stat-na {
-    border-top-color: var(--acento);
+    border-top-color: var(--info);
+}
+
+/* ----- Accesos rápidos de Inicio (st.page_link): botones grandes que llevan a otra página ----- */
+[data-testid="stPageLink"] a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 1rem 1.25rem;
+    border-radius: var(--radio);
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    color: var(--texto-titulo);
+    font-weight: 700;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+[data-testid="stPageLink"] a * {
+    color: inherit;
+}
+
+[data-testid="stPageLink"] a:hover {
+    background: var(--nav-activo);
+    color: #ffffff;
+    transform: translateY(-4px);
+    box-shadow: var(--sombra-fuerte);
+}
+
+[data-testid="stPageLink"] a:active {
+    transform: scale(0.97);
 }
 
 /* ----- Ficha del estudiante (plantillas/ficha.html) ----- */
 .ficha {
-    background: linear-gradient(135deg, var(--uni), var(--uni-oscuro));
+    background: var(--superficie);
     border: 1px solid var(--borde);
-    border-radius: 18px;
+    border-left: 5px solid var(--acento);
+    border-radius: var(--radio-grande);
     padding: 26px 30px;
     margin: 10px 0 18px 0;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.ficha:hover {
+    box-shadow: var(--sombra);
+    transform: translateY(-2px);
 }
 
 .ficha-top {
@@ -264,12 +643,12 @@ Se usan en Inicio y en Consulta de becas:
 .ficha-nombre {
     font-size: 1.7rem;
     font-weight: 800;
-    color: var(--blanco);
+    color: var(--texto-titulo);
 }
 
 .ficha-carrera {
     margin-top: 4px;
-    color: #cfdcf5;
+    color: var(--texto-suave);
 }
 
 .ficha-datos {
@@ -278,7 +657,7 @@ Se usan en Inicio y en Consulta de becas:
     gap: 16px;
     margin-top: 20px;
     padding-top: 18px;
-    border-top: 1px solid rgba(255, 255, 255, 0.25);
+    border-top: 1px solid var(--borde);
 }
 
 .ficha-datos span {
@@ -286,38 +665,38 @@ Se usan en Inicio y en Consulta de becas:
     font-size: 0.7rem;
     letter-spacing: 1.4px;
     text-transform: uppercase;
-    color: #b9cbee;
+    color: var(--texto-suave);
 }
 
 .ficha-datos strong {
     display: block;
     margin-top: 4px;
-    color: var(--blanco);
+    color: var(--texto);
     word-break: break-all;
 }
 
 .ficha-motivo {
     margin-top: 20px;
     padding: 12px 16px;
-    border-radius: 10px;
+    border-radius: 12px;
     border-left: 4px solid var(--texto-suave);
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--blanco);
+    background: color-mix(in srgb, var(--texto-suave) 10%, transparent);
+    color: var(--texto);
 }
 
 .motivo-ok {
     border-left-color: var(--verde);
-    background: rgba(62, 207, 142, 0.14);
+    background: color-mix(in srgb, var(--verde) 12%, transparent);
 }
 
 .motivo-no {
     border-left-color: var(--rojo);
-    background: rgba(255, 107, 120, 0.14);
+    background: color-mix(in srgb, var(--rojo) 12%, transparent);
 }
 
 .motivo-na {
-    border-left-color: var(--acento);
-    background: rgba(91, 155, 255, 0.16);
+    border-left-color: var(--info);
+    background: color-mix(in srgb, var(--info) 14%, transparent);
 }
 
 /* Etiqueta redondeada con el estado (Con beca / Sin beca / Sin registro) */
@@ -333,37 +712,112 @@ Se usan en Inicio y en Consulta de becas:
 .pill-ok {
     color: var(--verde);
     border-color: var(--verde);
-    background: rgba(62, 207, 142, 0.14);
+    background: color-mix(in srgb, var(--verde) 12%, transparent);
 }
 
 .pill-no {
     color: var(--rojo);
     border-color: var(--rojo);
-    background: rgba(255, 107, 120, 0.14);
+    background: color-mix(in srgb, var(--rojo) 12%, transparent);
 }
 
 .pill-na {
-    color: #cfe0ff;
-    border-color: var(--acento);
-    background: rgba(91, 155, 255, 0.18);
+    color: var(--info);
+    border-color: var(--info);
+    background: color-mix(in srgb, var(--info) 14%, transparent);
+}
+
+/* ---------- 5. MOVIMIENTO ---------- */
+
+@keyframes aparecer {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes brillo {
+    from {
+        background-position: 0% 50%;
+    }
+    to {
+        background-position: 100% 50%;
+    }
+}
+
+@keyframes contar {
+    from {
+        --num: 0;
+    }
+    to {
+        --num: var(--valor, 0);
+    }
+}
+
+/* El contenido entra suavemente al cambiar de página */
+[data-testid="stMainBlockContainer"] > div {
+    animation: aparecer 0.45s ease both;
+}
+
+/* Las tarjetas y los accesos rápidos entran uno tras otro (con "backwards" no estorban al efecto de hover) */
+.kpi,
+.stat,
+.ficha,
+[data-testid="stPageLink"] {
+    animation: aparecer 0.55s ease backwards;
+}
+
+[data-testid="stColumn"]:nth-child(2) :is(.kpi, .stat, [data-testid="stPageLink"]) {
+    animation-delay: 0.1s;
+}
+
+[data-testid="stColumn"]:nth-child(3) :is(.kpi, .stat, [data-testid="stPageLink"]) {
+    animation-delay: 0.2s;
+}
+
+/* Si el equipo pide menos movimiento, se apaga todo (los números muestran su valor final) */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation: none !important;
+        transition: none !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 /* En pantallas angostas (celular) el banner y la ficha se apilan */
 @media (max-width: 700px) {
-    .banner {
-        flex-direction: column;
-        text-align: center;
-        
-    }
-    .logo-uni {
-        display: none;
-    }
-    .banner-texto {
-        border-left: none;
-        padding-left: 0;
+    [data-testid="stHeader"] {
+        left: 0.5rem !important;
+        right: 0.5rem !important;
     }
 
+    [data-testid="stHeader"]::after {
+        display: none;
+    }
+
+    [data-testid="stMainBlockContainer"] {
+        width: calc(100% - 1rem);
+        padding: 1.25rem 1rem 2rem 1rem !important;
+    }
+
+    .banner {
+        flex-direction: column;
+    }
+
+    .banner-logo {
+        border-right: none;
+        margin: 0 0 16px 0;
+        padding: 0;
+    }
     .ficha-datos {
         grid-template-columns: 1fr;
+    }
+
+        :root {
+        --ancho-contenido: calc(100vw - 1rem);
     }
 }

@@ -1,5 +1,5 @@
 # =============================================================================
-# reporte_pdf.py -> Genera el REPORTE EN PDF de un estudiante (módulo NUEVO)
+# reporte_pdf.py -> Genera el REPORTE EN PDF de un estudiante
 #
 # Se usa así (desde consulta_becas.py):
 #     pdf_bytes = generar_pdf(estudiante, historial, estado, motivo)
@@ -8,69 +8,145 @@
 # estado_beca() de consulta_becas.py, así el PDF siempre dice lo mismo que la pantalla.
 #
 # Necesita instalar la librería reportlab:   pip install reportlab
+#
+# Marcas de los comentarios:
+#   # NUEVO:  -> algo que se agregó en esta versión
+#   # CAMBIO: -> algo que ya existía y se modificó
 # =============================================================================
 
 from datetime import date
 from io import BytesIO
-from pathlib import Path   # NUEVO: para encontrar el logo en la carpeta assets
+from pathlib import Path
 from xml.sax.saxutils import escape   # protege los textos por si traen símbolos como < o &
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
-from reportlab.platypus import (Image, KeepTogether, Paragraph, SimpleDocTemplate,
-                                Spacer, Table, TableStyle)   # NUEVO: Image, para el logo
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import (Flowable, KeepTogether, Paragraph, SimpleDocTemplate,
+                                Spacer, Table, TableStyle)
 
-# Las mismas reglas de la beca que usa todo el sistema (viven en academico.py)
 from academico import NOTA_APROBATORIA, PROMEDIO, REPROBADO
 
-# ---------- Colores ----------
-# CAMBIO: el PDF ahora usa el azul UNI y el blanco, igual que la interfaz (antes vino y dorado)
-AZUL = colors.HexColor("#003485")        # azul UNI: encabezado, títulos y encabezados de tabla
-ACENTO = colors.HexColor("#5b9bff")      # azul claro: línea decorativa bajo el encabezado
-# Logo en blanco (el mismo que usa la app), se dibuja sobre el encabezado azul
-LOGO = Path(__file__).parent / "assets" / "logo_claro.png"
-GRIS_CLARO = colors.HexColor("#f1f5f9")  # fondo de filas alternas y recuadros
-GRIS_LINEA = colors.HexColor("#cbd5e1")  # líneas de las tablas
-GRIS_TEXTO = colors.HexColor("#64748b")  # textos secundarios
-VERDE = colors.HexColor("#15803d")
-ROJO = colors.HexColor("#b91c1c")
+# ---------- Colores: los MISMOS valores que las variables de style.css ----------
+# CAMBIO: antes usaba un azul distinto (#003485); ahora cada color corresponde a una variable del CSS.
+BANNER_A = colors.HexColor("#254d73")     # --banner-a   (inicio del degradado del banner)
+BANNER_B = colors.HexColor("#0f2842")     # --banner-b   (final del degradado del banner)
+ACENTO = colors.HexColor("#003366")       # --acento / --uni-azul: encabezados de tabla, bordes de énfasis
+LINEA_BANNER = colors.HexColor("#2b7fd4") # azul claro del membrete (línea inferior del banner)
+TEXTO_TITULO = colors.HexColor("#0d233a") # --texto-titulo
+TEXTO_COLOR = colors.HexColor("#16293d")  # --texto
+GRIS_TEXTO = colors.HexColor("#52687d")   # --texto-suave
+GRIS_CLARO = colors.HexColor("#ecf2f7")   # --superficie: fondo de ficha, tarjetas y filas alternas
+GRIS_LINEA = colors.HexColor("#cbd8e3")   # --borde
+VERDE = colors.HexColor("#06472b")        # --verde  (Con beca)
+ROJO = colors.HexColor("#d64545")         # --rojo   (Sin beca)
+INFO = colors.HexColor("#3d688f")         # --info   (Sin registro)
 
-# Color fuerte y color suave para cada estado de beca (mismos tres estados de la pantalla)
-COLORES_ESTADO = {
-    "Con beca": (VERDE, colors.HexColor("#dcfce7")),
-    "Sin beca": (ROJO, colors.HexColor("#fee2e2")),
-    "Sin registro": (GRIS_TEXTO, colors.HexColor("#e2e8f0")),
-}
+# Logo del banner de Inicio (el mismo que usa app.py)
+LOGO = Path(__file__).parent / "assets" / "logo_becas.png"
+
+
+# NUEVO: Mezcla un color con blanco para obtener su versión suave (equivale al color-mix(... 12%, transparent) del CSS)
+def _suave(color, f=0.12):
+    return colors.Color(color.red * f + (1 - f), color.green * f + (1 - f), color.blue * f + (1 - f))
+
+
+# Color de cada estado de beca (mismos tres estados y mismos colores que la pantalla)
+COLOR_ESTADO = {"Con beca": VERDE, "Sin beca": ROJO, "Sin registro": INFO}
 
 # ---------- Estilos de texto ----------
-TEXTO = ParagraphStyle("texto", fontName="Helvetica", fontSize=10, leading=13)
-ETIQUETA = ParagraphStyle("etiqueta", parent=TEXTO, fontSize=8, textColor=GRIS_TEXTO)
-TITULO = ParagraphStyle("titulo", parent=TEXTO, fontName="Helvetica-Bold", fontSize=14.5,
-                        leading=18, textColor=colors.white)
-SUBTITULO = ParagraphStyle("subtitulo", parent=TEXTO, fontSize=10, textColor=colors.HexColor("#cbd5e1"))
-SECCION = ParagraphStyle("seccion", parent=TEXTO, fontName="Helvetica-Bold", fontSize=12,
-                         leading=15, textColor=AZUL, spaceBefore=12, spaceAfter=5)
+TEXTO = ParagraphStyle("texto", fontName="Helvetica", fontSize=10, leading=13, textColor=TEXTO_COLOR)
+ETIQUETA = ParagraphStyle("etiqueta", parent=TEXTO, fontSize=7.5, leading=10, textColor=GRIS_TEXTO)
+TITULO = ParagraphStyle("titulo", parent=TEXTO, fontName="Helvetica-Bold", fontSize=15,
+                        leading=19, textColor=colors.white)
+SUBTITULO = ParagraphStyle("subtitulo", parent=TEXTO, fontSize=10, textColor=colors.HexColor("#dbe4ec"))
+SECCION = ParagraphStyle("seccion", parent=TEXTO, fontName="Helvetica-Bold", fontSize=12.5,
+                         leading=16, textColor=TEXTO_TITULO, spaceBefore=14, spaceAfter=6)
 NOTA_PIE = ParagraphStyle("nota_pie", parent=TEXTO, fontSize=8.5, textColor=GRIS_TEXTO)
 
 ANCHO = A4[0] - 4 * cm   # ancho útil de la hoja (con 2 cm de margen a cada lado)
 
 
-# Convierte un valor a texto seguro para meterlo en un Paragraph
 def _t(valor):
     return escape(str(valor))
 
 
-# Si cumple los requisitos de la beca en ese semestre (la misma regla que usa el sistema)
+def _num(valor, defecto=0.0):
+    try:
+        return float(valor)
+    except (TypeError, ValueError):
+        return defecto
+
+
 def _cumple(registro):
-    return registro["Promedio"] >= PROMEDIO and registro["Reprobados"] <= REPROBADO
+    return _num(registro.get("Promedio")) >= PROMEDIO and _num(registro.get("Reprobados")) <= REPROBADO
 
 
-# Estilo común de las tablas de datos: encabezado azul, filas alternas y líneas finas
+# NUEVO: Encabezado dibujado a mano para reproducir el banner de la interfaz:
+#        degradado azul con esquinas redondeadas, logo SG UNI a la izquierda, línea divisoria
+#        y los textos a la derecha (antes era una tabla de color sólido).
+class Encabezado(Flowable):
+    def __init__(self, ancho, alto=3.1 * cm):
+        super().__init__()
+        self.width = ancho
+        self.height = alto
+
+    def wrap(self, ancho_disp, alto_disp):
+        return self.width, self.height
+
+    def draw(self):
+        c = self.canv
+        w, h = self.width, self.height
+        c.saveState()
+
+        # Fondo: degradado en diagonal entre los dos azules del banner, recortado con esquinas redondeadas
+        recorte = c.beginPath()
+        recorte.roundRect(0, 0, w, h, 12)
+        c.clipPath(recorte, stroke=0, fill=0)
+        c.linearGradient(0, h, w, 0, (BANNER_A, BANNER_B), extend=False)
+
+        # Línea de acento en la parte inferior (como el membrete de la interfaz)
+        c.setFillColor(LINEA_BANNER)
+        c.rect(0, 0, w, 3, stroke=0, fill=1)
+
+        x_texto = 0.8 * cm
+        if LOGO.exists():
+            lector = ImageReader(str(LOGO))
+            iw, ih = lector.getSize()
+            lh = h - 1.2 * cm                      # alto máximo del logo
+            lw = lh * iw / ih                      # se conserva la proporción real de la imagen
+            if lw > 4.6 * cm:                      # si es muy ancho, se limita por el ancho
+                lw = 4.6 * cm
+                lh = lw * ih / iw
+            x_logo = 0.7 * cm
+            c.drawImage(lector, x_logo, (h - lh) / 2, lw, lh, mask="auto")
+
+            # Línea divisoria vertical entre el logo y los textos (como el border-right del banner)
+            x_div = x_logo + lw + 0.45 * cm
+            c.setStrokeColor(colors.Color(1, 1, 1, alpha=0.35))
+            c.setLineWidth(0.8)
+            c.line(x_div, h * 0.22, x_div, h * 0.78)
+            x_texto = x_div + 0.55 * cm
+
+        # Textos, centrados verticalmente y con salto de línea automático
+        disp = w - x_texto - 0.6 * cm
+        titulo = Paragraph("Sistema de Gestión y Seguimiento de Becas", TITULO)
+        subtitulo = Paragraph("Reporte académico del estudiante", SUBTITULO)
+        _, h1 = titulo.wrap(disp, h)
+        _, h2 = subtitulo.wrap(disp, h)
+        arriba = (h + h1 + h2 + 4) / 2
+        titulo.drawOn(c, x_texto, arriba - h1)
+        subtitulo.drawOn(c, x_texto, arriba - h1 - 4 - h2)
+
+        c.restoreState()
+
+
+# Estilo común de las tablas de datos: encabezado azul UNI, filas alternas y líneas finas
 def _estilo_tabla():
     return TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), AZUL),
+        ("BACKGROUND", (0, 0), (-1, 0), ACENTO),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 9.5),
@@ -82,175 +158,195 @@ def _estilo_tabla():
     ])
 
 
-# Dibuja el pie de página: fecha de generación y número de página
 def _pie_pagina(lienzo, doc):
     lienzo.saveState()
     lienzo.setFont("Helvetica", 8)
     lienzo.setFillColor(GRIS_TEXTO)
-    lienzo.drawString(2 * cm, 1.2 * cm, f"Generado el {date.today():%d/%m/%Y}")
+    lienzo.drawString(2 * cm, 1.2 * cm, f"SG UNI  ·  Generado el {date.today():%d/%m/%Y}")
     lienzo.drawRightString(A4[0] - 2 * cm, 1.2 * cm, f"Página {doc.page}")
     lienzo.restoreState()
 
 
-# Recibe los datos de UN estudiante y devuelve el PDF como bytes (listo para st.download_button).
-#   estudiante -> diccionario con Nombre, Edad, carnet, carrera, correo
-#   historial  -> lista de semestres del estudiante (puede estar vacía)
-#   estado     -> "Con beca", "Sin beca" o "Sin registro" (viene de estado_beca)
-#   motivo     -> texto que explica el estado (viene de estado_beca)
-def generar_pdf(estudiante: dict, historial: list, estado: str, motivo: str) -> bytes:
-    documento = []   # aquí se van agregando las piezas del PDF, de arriba hacia abajo
+# NUEVO: Ficha del estudiante, reproduce plantillas/ficha.html:
+#        nombre + carrera a la izquierda, etiqueta (pill) con el estado a la derecha,
+#        carnet / edad / correo en tres columnas y el motivo en un recuadro con borde de color.
+def _ficha(estudiante, estado, motivo):
+    color = COLOR_ESTADO.get(estado, INFO)
+    suave = _suave(color)
+    interior = ANCHO - 34   # ancho disponible dentro de la ficha (descontando bordes y márgenes)
 
-    # ---------- 1. Encabezado ----------
-    # CAMBIO: el encabezado ahora tiene el logo a la izquierda y los textos a la derecha
-    #         (antes eran solo los dos textos). Si no se encuentra el logo, se deja vacío
-    #         y el PDF se genera igual.
-    logo = ""
-    if LOGO.exists():
-        logo = Image(str(LOGO), width=3.4 * cm, height=3.4 * cm * 180 / 361)   # 361x180 = proporción del logo
-    encabezado = Table(
-        [[logo, [Paragraph("Sistema de Gestión y Seguimiento de Becas", TITULO),
-                 Paragraph("Reporte académico del estudiante", SUBTITULO)]]],
-        colWidths=[4.4 * cm, ANCHO - 4.4 * cm],
-    )
-    encabezado.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), AZUL),
-        ("LINEBELOW", (0, 0), (-1, -1), 3, ACENTO),   # NUEVO: línea azul claro abajo
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 14),
-        ("TOPPADDING", (0, 0), (-1, -1), 14),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+    estilo_nombre = ParagraphStyle("nombre", parent=TEXTO, fontName="Helvetica-Bold",
+                                   fontSize=17, leading=21, textColor=TEXTO_TITULO)
+    estilo_pill = ParagraphStyle("pill", parent=TEXTO, fontName="Helvetica-Bold", fontSize=9,
+                                 leading=11, textColor=color, alignment=1)
+
+    # Etiqueta redondeada del estado (pill)
+    pill = Table([[Paragraph(_t(estado), estilo_pill)]], colWidths=[3.3 * cm])
+    pill.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), suave),
+        ("BOX", (0, 0), (-1, -1), 0.9, color),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ]))
-    documento += [encabezado, Spacer(1, 14)]
 
-    # ---------- 2. Datos del estudiante ----------
+    superior = Table(
+        [[[Paragraph(_t(estudiante.get("Nombre", "—")), estilo_nombre),
+           Paragraph(_t(estudiante.get("carrera", "—")), ParagraphStyle("carrera", parent=TEXTO,
+                                                                       textColor=GRIS_TEXTO))],
+          pill]],
+        colWidths=[interior - 3.3 * cm, 3.3 * cm],
+    )
+    superior.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+
     def dato(etiqueta, valor):
-        # Cada dato es una etiqueta pequeña gris y debajo el valor
         return [Paragraph(etiqueta.upper(), ETIQUETA), Paragraph(f"<b>{_t(valor)}</b>", TEXTO)]
 
+    edad = estudiante.get("Edad")
     datos = Table(
-        [[dato("Nombre", estudiante["Nombre"]), dato("Carnet", estudiante["carnet"])],
-         [dato("Carrera", estudiante["carrera"]), dato("Edad", f"{estudiante['Edad']} años")],
-         [dato("Correo", estudiante["correo"]), ""]],
-        colWidths=[ANCHO * 0.6, ANCHO * 0.4],
+        [[dato("Carnet", estudiante.get("carnet", "—")),
+          dato("Edad", f"{edad} años" if edad not in (None, "") else "—"),
+          dato("Correo", estudiante.get("correo", "—"))]],
+        colWidths=[interior * 0.24, interior * 0.2, interior * 0.56],
     )
     datos.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), GRIS_CLARO),
-        ("BOX", (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-        ("LEFTPADDING", (0, 0), (-1, -1), 12),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LINEABOVE", (0, 0), (-1, 0), 0.5, GRIS_LINEA),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
-    documento += [datos, Spacer(1, 12)]
 
-    # ---------- 3. Estado de la beca (recuadro de color) ----------
-    color_fuerte, color_suave = COLORES_ESTADO[estado]
-    estilo_estado = ParagraphStyle("estado", parent=TEXTO, fontName="Helvetica-Bold", fontSize=14,
-                                   leading=17, textColor=colors.white, alignment=1)  # 1 = centrado
-    caja_beca = Table(
-        [[Paragraph(_t(estado), estilo_estado),
-          [Paragraph(f"<b>{_t(motivo)}</b>", TEXTO),
-           Spacer(1, 3),
-           Paragraph(f"Requisitos: promedio de {PROMEDIO} o más y máximo {REPROBADO} "
-                     f"asignatura(s) reprobada(s). Se evalúa con el último semestre registrado.",
-                     NOTA_PIE)]]],
-        colWidths=[4 * cm, ANCHO - 4 * cm],
-    )
-    caja_beca.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, 0), color_fuerte),
-        ("BACKGROUND", (1, 0), (1, 0), color_suave),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (1, 0), (1, 0), 12),
-        ("TOPPADDING", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+    # Recuadro del motivo: fondo suave y borde izquierdo del color del estado
+    cuadro_motivo = Table([[Paragraph(_t(motivo), TEXTO)]], colWidths=[interior])
+    cuadro_motivo.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), suave),
+        ("LINEBEFORE", (0, 0), (0, -1), 3.5, color),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
     ]))
-    documento.append(caja_beca)
 
-    # ---------- 4. Resumen e historial (solo si tiene semestres registrados) ----------
+    # Contenedor de la ficha: fondo gris azulado y borde izquierdo de énfasis (como .ficha)
+    ficha = Table([[superior], [datos], [cuadro_motivo]], colWidths=[ANCHO])
+    ficha.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), GRIS_CLARO),
+        ("BOX", (0, 0), (-1, -1), 0.5, GRIS_LINEA),
+        ("LINEBEFORE", (0, 0), (0, -1), 5, ACENTO),
+        ("LEFTPADDING", (0, 0), (-1, -1), 20),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+        ("TOPPADDING", (0, 0), (-1, 0), 14),
+        ("TOPPADDING", (0, 1), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -2), 4),
+        ("BOTTOMPADDING", (0, -1), (-1, -1), 14),
+    ]))
+    return ficha
+
+
+def generar_pdf(estudiante: dict, historial: list, estado: str, motivo: str) -> bytes:
+    documento = []
+
+    # ---------- 1. Encabezado (banner con logo) ----------
+    documento += [Encabezado(ANCHO), Spacer(1, 14)]
+
+    # ---------- 2. Ficha del estudiante con su estado ----------
+    documento.append(_ficha(estudiante, estado, motivo))
+    documento += [Spacer(1, 5),
+                  Paragraph(f"Requisitos: promedio de {PROMEDIO} o más y máximo {REPROBADO} "
+                            f"asignatura(s) reprobada(s). Se evalúa con el último semestre registrado.",
+                            NOTA_PIE)]
+
+    # ---------- 3. Resumen e historial (solo si tiene semestres registrados) ----------
     if not historial:
         documento += [Spacer(1, 16),
                       Paragraph("Este estudiante aún no tiene semestres registrados.", TEXTO)]
     else:
-        promedios = [r["Promedio"] for r in historial]
+        promedios = [_num(r.get("Promedio")) for r in historial]
         promedio_general = sum(promedios) / len(promedios)
 
-        # Tres tarjetas: semestres cursados, promedio general y último promedio
         estilo_cifra = ParagraphStyle("cifra", parent=TEXTO, fontName="Helvetica-Bold",
-                                      fontSize=18, leading=22, textColor=AZUL)
+                                      fontSize=20, leading=24, textColor=TEXTO_TITULO)
 
         def tarjeta(etiqueta, valor):
             return [Paragraph(etiqueta.upper(), ETIQUETA), Paragraph(_t(valor), estilo_cifra)]
 
+        # CAMBIO: tres tarjetas separadas, con borde izquierdo de énfasis, igual que las métricas de la interfaz
+        hueco = 0.4 * cm
+        ancho_t = (ANCHO - 2 * hueco) / 3
         resumen = Table(
-            [[tarjeta("Semestres cursados", len(historial)),
-              tarjeta("Promedio general", f"{promedio_general:.2f}"),
+            [[tarjeta("Semestres cursados", len(historial)), "",
+              tarjeta("Promedio general", f"{promedio_general:.2f}"), "",
               tarjeta("Último promedio", f"{promedios[-1]:.2f}")]],
-            colWidths=[ANCHO / 3] * 3,
+            colWidths=[ancho_t, hueco, ancho_t, hueco, ancho_t],
         )
-        resumen.setStyle(TableStyle([
-            ("BOX", (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-            ("LINEAFTER", (0, 0), (1, 0), 0.5, GRIS_LINEA),
-            ("LEFTPADDING", (0, 0), (-1, -1), 12),
-            ("TOPPADDING", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ]))
-        documento += [Spacer(1, 12), resumen]
+        estilo_resumen = [("LEFTPADDING", (0, 0), (-1, -1), 12),
+                          ("TOPPADDING", (0, 0), (-1, -1), 8),
+                          ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]
+        for col in (0, 2, 4):
+            estilo_resumen += [("BACKGROUND", (col, 0), (col, 0), GRIS_CLARO),
+                               ("BOX", (col, 0), (col, 0), 0.5, GRIS_LINEA),
+                               ("LINEBEFORE", (col, 0), (col, 0), 5, ACENTO)]
+        for col in (1, 3):
+            estilo_resumen += [("LEFTPADDING", (col, 0), (col, 0), 0)]
+        resumen.setStyle(TableStyle(estilo_resumen))
+        documento += [Spacer(1, 14), resumen]
 
-        # Tabla general: una fila por semestre
         documento.append(Paragraph("Historial por semestre", SECCION))
         filas = [["Semestre", "Promedio", "Reprobadas", "Cumple requisitos"]]
         for registro in historial:
             cumple = _cumple(registro)
-            color = "#15803d" if cumple else "#b91c1c"
+            color = VERDE.hexval()[2:] if cumple else ROJO.hexval()[2:]
             filas.append([
-                _t(registro["Semestre"]),
-                f"{registro['Promedio']:.2f}",
-                str(registro["Reprobados"]),
-                Paragraph(f'<font color="{color}"><b>{"Sí" if cumple else "No"}</b></font>', TEXTO),
+                _t(registro.get("Semestre", "—")),
+                f"{_num(registro.get('Promedio')):.2f}",
+                str(registro.get("Reprobados", "—")),
+                Paragraph(f'<font color="#{color}"><b>{"Sí" if cumple else "No"}</b></font>', TEXTO),
             ])
         tabla_general = Table(filas, colWidths=[ANCHO * 0.25] * 4, repeatRows=1)
         tabla_general.setStyle(_estilo_tabla())
         documento.append(tabla_general)
 
-        # Detalle: las notas de cada asignatura, semestre por semestre
         documento.append(Paragraph("Calificaciones por asignatura", SECCION))
         for registro in historial:
             bloque = [Paragraph(
-                f"<b>Semestre {_t(registro['Semestre'])}</b>  ·  promedio {registro['Promedio']:.2f}",
-                TEXTO), Spacer(1, 4)]
+                f"<b>Semestre {_t(registro.get('Semestre', '—'))}</b>  ·  "
+                f"promedio {_num(registro.get('Promedio')):.2f}", TEXTO), Spacer(1, 4)]
 
             asignaturas = registro.get("Asignaturas")
             if asignaturas:
                 filas = [["Asignatura", "Nota", "Estado"]]
                 for asignatura in asignaturas:
-                    nota = asignatura["Notas"]
+                    nota = _num(asignatura.get("Notas"))
                     aprobada = nota >= NOTA_APROBATORIA
-                    color = "#15803d" if aprobada else "#b91c1c"
+                    color = VERDE.hexval()[2:] if aprobada else ROJO.hexval()[2:]
                     filas.append([
-                        Paragraph(_t(asignatura["Nombre"]), TEXTO),
+                        Paragraph(_t(asignatura.get("Nombre", "—")), TEXTO),
                         f"{nota:g}",
-                        Paragraph(f'<font color="{color}">{"Aprobada" if aprobada else "Reprobada"}</font>',
+                        Paragraph(f'<font color="#{color}">{"Aprobada" if aprobada else "Reprobada"}</font>',
                                   TEXTO),
                     ])
                 tabla = Table(filas, colWidths=[ANCHO * 0.6, ANCHO * 0.15, ANCHO * 0.25], repeatRows=1)
                 tabla.setStyle(_estilo_tabla())
                 bloque.append(tabla)
             else:
-                # Semestres registrados antes de que el sistema guardara las asignaturas
                 bloque.append(Paragraph("Detalle de asignaturas no disponible para este semestre.",
                                         NOTA_PIE))
 
-            # KeepTogether evita que un semestre se corte entre dos páginas si cabe completo
             documento += [KeepTogether(bloque), Spacer(1, 10)]
 
         documento.append(Paragraph(
             f"Una asignatura se considera aprobada con nota de {NOTA_APROBATORIA:g} o más.", NOTA_PIE))
 
-    # ---------- 5. Armar el PDF en memoria (sin crear archivos en el disco) ----------
+    # ---------- 4. Armar el PDF en memoria ----------
     memoria = BytesIO()
     SimpleDocTemplate(
         memoria, pagesize=A4,
         leftMargin=2 * cm, rightMargin=2 * cm, topMargin=1.8 * cm, bottomMargin=2 * cm,
-        title=f"Reporte académico - {estudiante['Nombre']}", author="Sistema de Becas",
+        title=f"Reporte académico - {estudiante.get('Nombre', '')}", author="Sistema de Becas SG UNI",
     ).build(documento, onFirstPage=_pie_pagina, onLaterPages=_pie_pagina)
     return memoria.getvalue()

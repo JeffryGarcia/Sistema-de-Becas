@@ -55,4 +55,3 @@ _INDICE.update({_clave(alias): oficial for alias, oficial in ALIAS.items()})
 # Devuelve el nombre oficial de la carrera o None si el texto no corresponde a ninguna del catálogo
 def canonica(texto):
     return _INDICE.get(_clave(texto))
-
