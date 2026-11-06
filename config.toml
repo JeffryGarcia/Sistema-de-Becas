@@ -1,43 +1,17 @@
 # =============================================================================
 # .streamlit/config.toml -> TEMA de Streamlit: SIEMPRE claro (paleta verde oscuro)
+# Un solo tema definido: no hay modo oscuro ni selector de tema.
 # Streamlit lee este archivo al arrancar. Si lo cambias, reinicia la app.
-# Las tablas (st.dataframe) y las barras de progreso toman sus colores de aquí,
-# no del CSS. Si cambias la paleta en style.css, cambia también estos colores.
+# Si cambias la paleta en style.css, cambia también estos colores.
 #
-# IMPORTANTE: la carpeta .streamlit debe estar en la misma carpeta desde donde
-# corres "streamlit run app.py" (junto a app.py).
-#
-# Por qué se repite el tema: el menú de Streamlit ofrece System / Light / Dark.
-# "System" y "Dark" usan la tabla [theme.dark]. Esa tabla también lleva
-# base = "light"; si no, parte de una base oscura y los widgets se ven oscuros.
+# IMPORTANTE: la carpeta .streamlit debe estar junto a app.py.
 # =============================================================================
-
-[client]
-# Oculta las opciones del menú de los tres puntos, incluido el selector de tema
-toolbarMode = "minimal"
 
 [theme]
 base = "light"
 font = "sans serif"
-primaryColor = "#0F6A4D"
-backgroundColor = "#FBFDFC"
-secondaryBackgroundColor = "#EDF5F0"
-textColor = "#12281F"
-
-# ---------- Modo claro ----------
-[theme.light]
-base = "light"
-primaryColor = "#0F6A4D"
-backgroundColor = "#FBFDFC"
-secondaryBackgroundColor = "#EDF5F0"
-textColor = "#12281F"
-baseRadius = "large"
-
-# ---------- Modo oscuro: base CLARA para forzar el mismo estilo ----------
-[theme.dark]
-base = "light"
-primaryColor = "#0F6A4D"
-backgroundColor = "#FBFDFC"
-secondaryBackgroundColor = "#EDF5F0"
-textColor = "#12281F"
+primaryColor = "#0F6A4D"             # = --acento de style.css
+backgroundColor = "#FBFDFC"          # = --tarjeta
+secondaryBackgroundColor = "#EDF5F0" # = --superficie
+textColor = "#12281F"                # = --texto
 baseRadius = "large"

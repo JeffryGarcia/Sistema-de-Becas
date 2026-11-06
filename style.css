@@ -821,3 +821,8 @@ Se usan en Inicio y en Consulta de becas:
         --ancho-contenido: calc(100vw - 1rem);
     }
 }
+
+/* Elimina el menú de los tres puntos (donde está el selector de tema) */
+[data-testid="stMainMenu"] {
+    display: none !important;
+}
