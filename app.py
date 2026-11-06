@@ -46,7 +46,11 @@ st.set_page_config(
 #    Se aplica de manera global a toda la aplicación web, incluyendo los componentes de los sub-módulos.
 css = (CARPETA / "style.css").read_text(encoding="utf-8")
 st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
-
+# Refuerzo: obliga al navegador a usar siempre el esquema de colores claro
+st.markdown(
+    "<style>:root, .stApp { color-scheme: light !important; }</style>",
+    unsafe_allow_html=True,
+)
 # Logo de la UNI dentro de la barra de navegación (a la derecha, antes del menú de tres puntos).
 # Aquí solo se entrega la imagen como variable CSS (--logo-uni); style.css la dibuja dentro del header
 # con stHeader::after, así no depende de dónde esté el elemento en la página.
