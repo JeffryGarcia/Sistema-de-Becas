@@ -823,6 +823,63 @@ Se usan en Inicio y en Consulta de becas:
 }
 
 /* Elimina el menú de los tres puntos (donde está el selector de tema) */
-[data-testid="stMainMenu"] {
-    display: none !important;
+/* Respaldo: colores claros forzados en widgets y textos */
+.stApp label,
+.stApp [data-testid="stWidgetLabel"] p,
+.stApp [data-testid="stCaptionContainer"],
+.stApp [data-testid="stCaptionContainer"] p {
+    color: #12281F !important;
+}
+
+.stApp div[data-baseweb="select"] > div {
+    background-color: #EDF5F0 !important;
+    color: #12281F !important;
+}
+.stApp div[data-baseweb="select"] span,
+.stApp div[data-baseweb="select"] svg {
+    color: #12281F !important;
+    fill: #12281F !important;
+}
+
+div[data-baseweb="popover"] ul,
+div[data-baseweb="popover"] li {
+    background-color: #FBFDFC !important;
+    color: #12281F !important;
+}
+
+.stApp [data-testid="stAlert"] {
+    background-color: #FFF8E1 !important;
+}
+.stApp [data-testid="stAlert"] * {
+    color: #5C4400 !important;
+}
+/* Respaldo: colores claros forzados en widgets y textos */
+.stApp label,
+.stApp [data-testid="stWidgetLabel"] p,
+.stApp [data-testid="stCaptionContainer"],
+.stApp [data-testid="stCaptionContainer"] p {
+    color: #12281F !important;
+}
+
+.stApp div[data-baseweb="select"] > div {
+    background-color: #EDF5F0 !important;
+    color: #12281F !important;
+}
+.stApp div[data-baseweb="select"] span,
+.stApp div[data-baseweb="select"] svg {
+    color: #12281F !important;
+    fill: #12281F !important;
+}
+
+div[data-baseweb="popover"] ul,
+div[data-baseweb="popover"] li {
+    background-color: #FBFDFC !important;
+    color: #12281F !important;
+}
+
+.stApp [data-testid="stAlert"] {
+    background-color: #FFF8E1 !important;
+}
+.stApp [data-testid="stAlert"] * {
+    color: #5C4400 !important;
 }
